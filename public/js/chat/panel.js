@@ -146,18 +146,31 @@ export function installChat({ net }) {
     const nodes = log.querySelectorAll('.sp-chat-line');
     nodes.forEach((n, i) => n.classList.toggle('old', i < nodes.length - 12));
   }
+  // [chat-scroll] stick-to-bottom ONLY while the reader is already at the bottom (or just sent a line). Scrolling up to
+  // read history must survive new messages, history merges and rename relabels instead of snapping back down.
+  let stick = true, rebuilding = false;
+  log.addEventListener('scroll', () => { if (!rebuilding) stick = log.scrollHeight - log.scrollTop - log.clientHeight < 24; });
+  const toBottom = () => { log.scrollTop = log.scrollHeight; stick = true; };
   function appendLine(m) {
     const empty = log.querySelector('.sp-chat-empty'); if (empty) empty.remove();
+    const mine = m.accountId === state.own || m.account_id === state.own;
+    const keep = stick || mine, prevTop = log.scrollTop;
     log.append(lineNode(m, true));
-    while (log.querySelectorAll('.sp-chat-line').length > 40) log.querySelector('.sp-chat-line').remove();
-    markOld(); log.scrollTop = log.scrollHeight;
+    let removed = 0;
+    while (log.querySelectorAll('.sp-chat-line').length > 40) { const n = log.querySelector('.sp-chat-line'); removed += n.offsetHeight + 3; n.remove(); }
+    markOld();
+    if (keep) toBottom(); else log.scrollTop = Math.max(0, prevTop - removed);
   }
-  function rebuildLog() {
+  function rebuildLog(forceBottom) {
+    const prevTop = log.scrollTop;
+    rebuilding = true;
     log.innerHTML = '';
     const arr = state.msg[state.channel] || [];
-    if (!arr.length) { log.append(el('div', 'sp-chat-empty', state.channel === 'room' ? '房间频道暂无消息' : '世界频道暂无消息')); return; }
-    for (const m of arr.slice(-40)) log.append(lineNode(m, false));
-    markOld(); log.scrollTop = log.scrollHeight;
+    if (!arr.length) log.append(el('div', 'sp-chat-empty', state.channel === 'room' ? '房间频道暂无消息' : '世界频道暂无消息'));
+    else for (const m of arr.slice(-40)) log.append(lineNode(m, false));
+    markOld();
+    rebuilding = false;
+    if (forceBottom || stick) toBottom(); else log.scrollTop = Math.max(0, Math.min(prevTop, log.scrollHeight - log.clientHeight));
   }
   function renderTabs() {
     tabs.innerHTML = '';
@@ -179,10 +192,10 @@ export function installChat({ net }) {
     if (id === 'room' && !state.roomCode) return;
     state.channel = id;
     if (id === 'room') net.send('chat.history', { channel: 'room' });
-    rebuildLog(); syncView();
+    rebuildLog(true); syncView();
     if (state.open) input.focus();
   }
-  function openChat() { state.open = true; syncView(); rebuildLog(); input.focus(); }
+  function openChat() { state.open = true; syncView(); rebuildLog(true); input.focus(); }
   function closeChat() { state.open = false; syncView(); input.blur(); }
   function doSend() {
     const v = input.value.trim(); if (!v) return;
@@ -227,8 +240,8 @@ export function installChat({ net }) {
   const refresh = () => { if (net.status !== 'online') return; box.dataset.online = '1'; net.send('chat.history', { channel: 'world' }); if (state.roomCode) net.send('chat.history', { channel: 'room' }); };
   net.on('welcome', (m) => { if (m.account?.id) state.own = m.account.id; refresh(); });
   net.on('status', () => { box.dataset.online = net.status === 'online' ? '1' : '0'; if (net.status === 'online') refresh(); });
-  net.on('room.state', (m) => { if (m.code && m.code !== state.roomCode) { state.roomCode = m.code; state.channel = 'room'; net.send('chat.history', { channel: 'room' }); rebuildLog(); syncView(); } else if (m.code) state.roomCode = m.code; });
-  net.on('room.closed', () => { state.roomCode = null; if (state.channel === 'room') { state.channel = 'world'; rebuildLog(); } syncView(); });
+  net.on('room.state', (m) => { if (m.code && m.code !== state.roomCode) { state.roomCode = m.code; state.channel = 'room'; net.send('chat.history', { channel: 'room' }); rebuildLog(true); syncView(); } else if (m.code) state.roomCode = m.code; });
+  net.on('room.closed', () => { state.roomCode = null; if (state.channel === 'room') { state.channel = 'world'; rebuildLog(true); } syncView(); });
   net.on('chat.lobby', (m) => {
     const ch = m.channel === 'room' ? 'room' : 'world';
     (state.msg[ch] ||= []).push(m); if (state.msg[ch].length > 120) state.msg[ch].shift();
