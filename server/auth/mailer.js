@@ -27,7 +27,7 @@ export function createMailer({ log } = {}) {
       const feed = (chunk) => {
         buf += chunk.toString('utf8');
         const m = buf.match(/(?:^|\n)(\d{3}) [^\n]*\n/);   // a complete SMTP response ends with a "NNN <text>" line
-        if (m && pending) { const code = Number(m[1]); const resp = buf; buf = buf.slice(m.index + m[0].length); const p = pending; pending = null; p(code, resp); }
+        if (m && pending) { const code = Number(m[1]); const resp = buf; buf = buf.slice(m.index + m[0].length); const p = pending; pending = null; p([code, resp]); }
       };
       const wait = () => new Promise((res) => { pending = res; });
       const send = (s) => sock.write(s + '\r\n');
