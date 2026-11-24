@@ -1,6 +1,7 @@
 // shot-admin.mjs — verify feature 1 (admin-only profile button) + feature 2 (admin match-control panel) UI. PORT 3005.
 import puppeteer from 'puppeteer-core';
 import WebSocket from 'ws';
+import { adminPass } from './_test-creds.mjs'; // [auth-fork]
 const BASE = 'http://127.0.0.1:3005', WS = 'ws://127.0.0.1:3005/ws';
 const CHROME = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 const SHOT = 'J:/MyConfident/deepseek-harness/default-workspace/_build/fork';
@@ -11,7 +12,7 @@ setTimeout(() => { console.log('TIMEOUT'); process.exit(2); }, 90000);
 const post = async (p, b, t) => (await fetch(BASE + p, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: 'Bearer ' + t } : {}) }, body: JSON.stringify(b) })).json();
 const get = async (p, t) => (await fetch(BASE + p, { headers: { Authorization: 'Bearer ' + t } })).json();
 
-const admin = await post('/api/auth/login', { mode: 'password', username: 'root', password: 'Test#Admin3005' });
+const admin = await post('/api/auth/login', { mode: 'password', username: 'root', password: adminPass() });
 const at = admin.token;
 ok(admin.ok && !!at, '管理员登录');
 

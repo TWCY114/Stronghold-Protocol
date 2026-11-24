@@ -1,9 +1,11 @@
 // test-auth.mjs — P1 backend integration test against a running fork server (PORT 3001). Run: node test-auth.mjs
 import WebSocket from 'ws';
+import { randPass } from './_test-creds.mjs'; // [auth-fork]
 
 const BASE = 'http://127.0.0.1:3001';
 const WS = 'ws://127.0.0.1:3001/ws';
 const U = 'alice_' + Math.random().toString(36).slice(2, 8);   // unique per run (the store persists; no deletion)
+const PW = randPass();   // random per run; no fixed password committed
 let pass = 0, fail = 0;
 const ok = (cond, label, extra = '') => { if (cond) { pass++; console.log(`  ✓ ${label}`); } else { fail++; console.log(`  ✗ ${label} ${extra}`); } };
 
@@ -39,20 +41,20 @@ if (!up) { console.log('服务器未就绪'); process.exit(1); }
 console.log('服务器就绪，开始 P1 测试\n');
 
 console.log('[账号 API]');
-const reg = await post('/api/auth/register', { mode: 'password', username: U, password: 'secret123' });
+const reg = await post('/api/auth/register', { mode: 'password', username: U, password: PW });
 ok(reg.status === 200 && reg.json?.ok && reg.json.token, '注册 ' + U + ' 成功并返回 token', JSON.stringify(reg.json));
 const tokenA = reg.json?.token;
 ok(reg.json?.account?.username === U && reg.json?.account?.role === 'user', '注册返回账号信息');
 
-const dup = await post('/api/auth/register', { mode: 'password', username: U, password: 'secret123' });
+const dup = await post('/api/auth/register', { mode: 'password', username: U, password: PW });
 ok(dup.status === 400 && dup.json?.error === 'taken', '重复注册被拒 (taken)', JSON.stringify(dup.json));
 
-const badUser = await post('/api/auth/register', { mode: 'password', username: 'a', password: 'secret123' });
+const badUser = await post('/api/auth/register', { mode: 'password', username: 'a', password: PW });
 ok(badUser.json?.error === 'bad_username', '非法用户名被拒');
 const badPass = await post('/api/auth/register', { mode: 'password', username: 'bob', password: '123' });
 ok(badPass.json?.error === 'bad_password', '短密码被拒');
 
-const login = await post('/api/auth/login', { mode: 'password', username: U, password: 'secret123' });
+const login = await post('/api/auth/login', { mode: 'password', username: U, password: PW });
 ok(login.status === 200 && login.json?.ok && login.json.token, '登录成功');
 const wrong = await post('/api/auth/login', { mode: 'password', username: U, password: 'wrongpass' });
 ok(wrong.status === 401 && wrong.json?.error === 'bad_credentials', '错误密码被拒 (401)');

@@ -1,6 +1,7 @@
 // test-admin-e2e.mjs — P2 admin UI in real Chrome (PORT 3002). Logs in as admin, opens /admin, checks the chart + cards +
 // tables render, and screenshots the dashboard.
 import puppeteer from 'puppeteer-core';
+import { adminPass } from './_test-creds.mjs'; // [auth-fork]
 const BASE = 'http://127.0.0.1:' + (process.env.PORT || '3002');
 const CHROME = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 const SHOT = 'J:/MyConfident/deepseek-harness/default-workspace/_build/fork';
@@ -8,7 +9,7 @@ let pass = 0, fail = 0;
 const ok = (c, l, x = '') => { if (c) { pass++; console.log(`  ✓ ${l}`); } else { fail++; console.log(`  ✗ ${l} ${x}`); } };
 
 for (let i = 0; i < 30; i++) { try { if ((await fetch(BASE + '/healthz')).ok) break; } catch {} await new Promise((r) => setTimeout(r, 500)); }
-const login = await (await fetch(BASE + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'password', username: 'root', password: 'admin12345' }) })).json();
+const login = await (await fetch(BASE + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'password', username: 'root', password: adminPass() }) })).json();
 const token = login.token;
 
 const browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new', args: ['--no-sandbox', '--disable-dev-shm-usage'] });

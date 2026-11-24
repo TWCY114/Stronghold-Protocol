@@ -1,7 +1,8 @@
 // test-admin.mjs — verify the seeded admin role flows through login and the WS welcome.
 import WebSocket from 'ws';
+import { adminPass } from './_test-creds.mjs'; // [auth-fork]
 const BASE = 'http://127.0.0.1:3001';
-const U = 'root', P = 'admin12345';
+const U = 'root', P = adminPass();
 const login = await (await fetch(BASE + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'password', username: U, password: P }) })).json();
 console.log('login ok=', login.ok, 'role=', login.account?.role);
 if (!login.ok || login.account?.role !== 'admin') { console.log('✗ 管理员登录/角色失败'); process.exit(1); }

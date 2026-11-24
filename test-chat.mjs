@@ -1,6 +1,8 @@
 // test-chat.mjs — P3 chat/friends/PM WebSocket flow test against a fork server on PORT 3002 (isolated SP_AUTH_DB).
 import WebSocket from 'ws';
+import { randPass } from './_test-creds.mjs'; // [auth-fork]
 const BASE = 'http://127.0.0.1:3002', WS = 'ws://127.0.0.1:3002/ws';
+const PW = randPass();   // random per run; no fixed password committed
 let pass = 0, fail = 0;
 const ok = (c, l, x = '') => { if (c) { pass++; console.log(`  ✓ ${l}`); } else { fail++; console.log(`  ✗ ${l} ${x}`); } };
 const post = async (p, b) => (await fetch(BASE + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) })).json();
@@ -25,8 +27,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 for (let i = 0; i < 30; i++) { try { if ((await fetch(BASE + '/healthz')).ok) break; } catch {} await sleep(500); }
 const suffix = Math.random().toString(36).slice(2, 7);
-const A = await post('/api/auth/register', { username: 'alice_' + suffix, password: 'pass12345' });
-const B = await post('/api/auth/register', { username: 'bob_' + suffix, password: 'pass12345' });
+const A = await post('/api/auth/register', { username: 'alice_' + suffix, password: PW });
+const B = await post('/api/auth/register', { username: 'bob_' + suffix, password: PW });
 const aid = A.account.id, bid = B.account.id;
 
 console.log('[大厅聊天]');

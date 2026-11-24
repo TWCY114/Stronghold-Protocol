@@ -1,6 +1,7 @@
 // test-admin-match.mjs — [auth-fork] admin match-edit HTTP surface against PORT 3005: role gate, route wiring, and a real
 // solo match created over WS then edited (funds / round) through /api/admin/match-edit. Run: node test-admin-match.mjs
 import WebSocket from 'ws';
+import { adminPass } from './_test-creds.mjs'; // [auth-fork]
 const B = 'http://127.0.0.1:3005', WS = 'ws://127.0.0.1:3005/ws';
 let pass = 0, fail = 0;
 const ok = (c, l, x = '') => { if (c) { pass++; console.log(`  ✓ ${l}`); } else { fail++; console.log(`  ✗ ${l} ${x}`); } };
@@ -20,7 +21,7 @@ class C {
 }
 for (let i = 0; i < 30; i++) { try { await fetch(B + '/healthz'); break; } catch {} await sleep(500); }
 
-const admin = await post('/api/auth/login', { mode: 'password', username: 'root', password: 'Test#Admin3005' });
+const admin = await post('/api/auth/login', { mode: 'password', username: 'root', password: adminPass() });
 ok(admin.ok, '管理员登录');
 const at = admin.token;
 const sfx = Math.random().toString(36).slice(2, 7);

@@ -1,4 +1,5 @@
 // test-admin-api.mjs — P2 admin backend test against a fork server on PORT 3002 (isolated SP_AUTH_DB).
+import { adminPass, randPass } from './_test-creds.mjs'; // [auth-fork]
 const BASE = 'http://127.0.0.1:3002';
 let pass = 0, fail = 0;
 const ok = (c, l, x = '') => { if (c) { pass++; console.log(`  ✓ ${l}`); } else { fail++; console.log(`  ✗ ${l} ${x}`); } };
@@ -8,7 +9,7 @@ async function call(path, { method = 'GET', token, body } = {}) {
 }
 for (let i = 0; i < 30; i++) { try { if ((await fetch(BASE + '/healthz')).ok) break; } catch {} await new Promise((r) => setTimeout(r, 500)); }
 
-const admin = await call('/api/auth/login', { method: 'POST', body: { mode: 'password', username: 'root', password: 'admin12345' } });
+const admin = await call('/api/auth/login', { method: 'POST', body: { mode: 'password', username: 'root', password: adminPass() } });
 ok(admin.j?.ok && admin.j.account?.role === 'admin', '管理员登录');
 const T = admin.j?.token;
 
@@ -32,13 +33,13 @@ ok(accounts.j?.ok && accounts.j.accounts.some((a) => a.username === 'root'), 'ac
 
 console.log('[账号 CRUD]');
 const U = 'tester_' + Math.random().toString(36).slice(2, 7);
-const create = await call('/api/admin/accounts', { method: 'POST', token: T, body: { username: U, password: 'pass12345', role: 'user' } });
+const create = await call('/api/admin/accounts', { method: 'POST', token: T, body: { username: U, password: randPass(), role: 'user' } });
 ok(create.j?.ok && create.j.account?.id, '创建账号', JSON.stringify(create.j));
 const id = create.j?.account?.id;
 ok((await call('/api/admin/account', { method: 'POST', token: T, body: { id, action: 'disable' } })).j?.ok, '停用账号');
 ok((await call('/api/admin/account', { method: 'POST', token: T, body: { id, action: 'enable' } })).j?.ok, '启用账号');
 ok((await call('/api/admin/account', { method: 'POST', token: T, body: { id, action: 'role', role: 'admin' } })).j?.ok, '改角色');
-ok((await call('/api/admin/account', { method: 'POST', token: T, body: { id, action: 'reset-password', password: 'newpass123' } })).j?.ok, '重置密码');
+ok((await call('/api/admin/account', { method: 'POST', token: T, body: { id, action: 'reset-password', password: randPass() } })).j?.ok, '重置密码');
 const del = await call('/api/admin/account', { method: 'POST', token: T, body: { id, action: 'delete' } });
 ok(del.j?.ok, '删除账号');
 const after = await call('/api/admin/accounts', { token: T });

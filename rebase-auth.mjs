@@ -198,7 +198,9 @@ const check = [...touched,
   'server/chat/store.js', 'server/chat/chat.js', 'server/chat/index.js', 'server/chat/ws.js', 'public/js/chat/panel.js',
   'public/js/chat/friends.js', 'public/js/chat/settings.js', 'public/js/chat/pref.js', 'public/js/auth/logout.js', 'public/js/chat/profile.js',
   'server/auth/mailer.js', 'public/js/auth/fingerprint.js', 'public/js/auth/convert.js', 'public/login/login.js',
-  'server/admin/matchEdit.js', 'server/match/Match.js', 'server/match/host/proxy.js'];
+  'server/admin/matchEdit.js', 'server/match/Match.js', 'server/match/host/proxy.js',
+  '_test-creds.mjs', 'test-admin.mjs', 'test-admin-api.mjs', 'test-admin-e2e.mjs', 'test-admin-match.mjs',
+  'shot-admin.mjs', 'test-auth.mjs', 'test-chat.mjs', 'test-token-auth.mjs', 'test-account-plus.mjs'];
 let bad = 0;
 for (const rel of check) {
   const r = spawnSync(process.execPath, ['--check', join(ROOT, rel)], { encoding: 'utf8' });

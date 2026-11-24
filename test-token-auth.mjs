@@ -1,5 +1,7 @@
 // test-token-auth.mjs — token-only register/login (default) + password mode, against PORT 3003 (isolated SP_AUTH_DB).
+import { randPass } from './_test-creds.mjs'; // [auth-fork]
 const B = 'http://127.0.0.1:3003';
+const PW = randPass();   // random per run; no fixed password committed
 let pass = 0, fail = 0;
 const ok = (c, l, x = '') => { if (c) { pass++; console.log(`  ✓ ${l}`); } else { fail++; console.log(`  ✗ ${l} ${x}`); } };
 const post = async (p, b) => (await fetch(B + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) })).json();
@@ -23,13 +25,13 @@ const me = await (await fetch(B + '/api/auth/me', { headers: { Authorization: 'B
 ok(me.ok && me.account, '永久 token 通过 /me');
 
 console.log('[token-only 账号不能用密码登录]');
-const l3 = await post('/api/auth/login', { mode: 'password', username: 'tok_' + sfx, password: 'whatever123' });
+const l3 = await post('/api/auth/login', { mode: 'password', username: 'tok_' + sfx, password: randPass() });
 ok(l3.error === 'bad_credentials', '无密码账号密码登录被拒');
 
 console.log('[password 模式仍可用]');
-const r3 = await post('/api/auth/register', { mode: 'password', username: 'pw_' + sfx, password: 'pass12345' });
+const r3 = await post('/api/auth/register', { mode: 'password', username: 'pw_' + sfx, password: PW });
 ok(r3.ok && r3.mode === 'password', 'password 注册');
-const l4 = await post('/api/auth/login', { mode: 'password', username: 'pw_' + sfx, password: 'pass12345' });
+const l4 = await post('/api/auth/login', { mode: 'password', username: 'pw_' + sfx, password: PW });
 ok(l4.ok && l4.mode === 'password', 'password 登录');
 const l5 = await post('/api/auth/login', { mode: 'password', username: 'pw_' + sfx, password: 'wrong' });
 ok(l5.error === 'bad_credentials', '错密码拒绝');
