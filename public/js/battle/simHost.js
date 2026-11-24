@@ -1,4 +1,4 @@
-// C4 simulation hosts (DESIGN §32.11). The clock belongs to runner.js. Only the vanilla host has a Battle on the page.
+// C4 simulation hosts (DESIGN ยง32.11). The clock belongs to runner.js. Only the vanilla host has a Battle on the page.
 import { loadBrowserSim, checkOperatorTraitRuntime } from './simLoader.js';
 import { unitStatsEntry } from '../../../shared/protocol.js';
 
@@ -115,6 +115,7 @@ export class WorkerSimHost {
     this.events.push(...packet.ev);
     Object.assign(this.battle, packet.state);
     this.meter = packet.meter;
+    if (packet.combat && typeof packet.combat === 'object') this.combatCache = packet.combat;
     return packet;
   }
   async start(spec) {
@@ -126,6 +127,7 @@ export class WorkerSimHost {
     const packet = await this.rpc('start', [spec]);
     this.events.length = 0;
     this.statsCache.clear();
+    this.combatCache = null; this.combatPending = false;
     this.accept(packet);
     return this;
   }
@@ -144,6 +146,24 @@ export class WorkerSimHost {
       });
     }
     return this.statsCache.get(id) || null;
+  }
+  /**
+   * ไฝๆ็ป่ฎก of the battle this worker is simulating (the tracker lives worker-side, where the real Battle
+   * is): a cached pull, one request in flight, so the panel's own repaint rate bounds the traffic. A new
+   * battle's `start` clears the cache, and `statsGeneration` drops a reply that came from the previous one.
+   */
+  combatStats() {
+    if (this.stopped) return this.combatCache || null;
+    if (!this.combatPending) {
+      this.combatPending = true;
+      const generation = this.statsGeneration || 0;
+      this.rpc('combat', []).then((v) => {
+        if (generation === (this.statsGeneration || 0) && v && typeof v === 'object') this.combatCache = v;
+      }, () => {}).finally(() => {
+        if (generation === (this.statsGeneration || 0)) this.combatPending = false;
+      });
+    }
+    return this.combatCache || null;
   }
   ownerOps(pid) { return this.packet?.ops?.[pid] || []; }
   syncPool(hp, acked) { return this.rpc('syncPool', [hp, acked]).catch(() => {}); }

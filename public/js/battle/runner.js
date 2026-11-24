@@ -867,9 +867,14 @@ export function createBattleRunner(deps) {
       e.sim = sim;
       e.battle = battle;
       e.meter = e.host.meter;
-      // The Worker page holds wire state only (time, ids): no `damaged` hook and no `heal`, so trackCombat cannot
-      // run there. An in-page Battle gets the meter only when 作战统计 is on (default off; a test may pin it).
-      if (metricsEnabled() && !e.host.remote) e.combatMetrics = trackCombat(battle);
+      // An in-page Battle gets the meter from its own hooks. A Worker host counts inside the worker (the real
+      // Battle is there; the page holds wire state only) and the record is pulled from it — 作战统计 included
+      // for a gameplay-plugin set. Only when 作战统计 is on (default off; a test may pin it).
+      if (metricsEnabled() && (!e.host.remote || typeof e.host.combatStats === 'function')) {
+        e.combatMetrics = e.host.remote
+          ? () => e.host.combatStats() || { seconds: 0, owners: [], rows: [] }
+          : trackCombat(battle);
+      }
       e.t0 = clock() - (e.elapsed / e.speed) * 1000;
       if (lastPool) await e.host.syncPool(lastPool.hp, lastPool.acked ? lastPool.acked[e.fieldId] : undefined);
       if (e.endReason) await endBattle(e);

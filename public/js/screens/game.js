@@ -316,9 +316,10 @@ function MatchScreen() {
   const [rewardMin, setRewardMin] = useState(false);
   // 作战统计 (battle/metrics.js): a client-only local damage/healing panel — never uploaded to the server.
   // Off unless the setting is on. A gameplay-plugin room (modRoom: content.vanilla === false) is simulated in a
-  // Worker, which has no damaged/heal data, so the button stays hidden. The hud.right ui-slot is not this gate.
+  // Worker, which counts the meters worker-side and reports them (battle/simHost.js combatStats), so the
+  // button shows there too. The hud.right ui-slot is not this gate.
   const [metricsOpen, setMetricsOpen] = useState(false);
-  const showMetrics = metricsSetting && !modRoom && !spectator;
+  const showMetrics = metricsSetting && !spectator;
   useEffect(() => { if (!showMetrics) setMetricsOpen(false); }, [showMetrics]);
   const [emoteOpen, setEmoteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);

@@ -22,7 +22,7 @@
 
 import { useEffect, useState } from '../../vendor/hooks.module.js';
 import { pwaInstall } from '../pwa.js';
-import { html, Icon, Button } from './components.js';
+import { html, Icon, Button, alertDialog, closeAllDialogs, confirmDialog } from './components.js';
 import { t } from '../../../shared/i18n.js';
 
 /** A touch held this long without moving opens the detail (contextmenu) on DOM controls. */
@@ -254,16 +254,127 @@ export function FullscreenButton({ class: cls = '' }) {
 }
 
 /**
- * Only a browser-issued install offer shows a button; installed and unsupported environments stay quiet.
- * `square`: the glyph alone (the lobby's top bar, beside ⚙ / 📖), the name stays title / aria-label.
+ * This server's installable origin: the domain its TLS certificate is issued for. An IP origin is never offered an
+ * install (the certificate does not match, so the browser does not treat the page as installable), which is why the
+ * guidance below names this origin. Server specific: change it together with the domain.
  */
-export function PwaInstallButton({ class: cls = '', size = 'sm', square = false }) {
+export const PWA_ORIGIN = 'https://twcy.antu.fun:34671';
+
+/** True when this page IS the installed app (the manifest's `display`, or iOS' `navigator.standalone`). */
+function runningAsInstalledApp(win = globalThis.window) {
+  return !!win?.navigator?.standalone
+    || !!win?.matchMedia?.('(display-mode: standalone), (display-mode: fullscreen)')?.matches;
+}
+
+/** An IP literal (v4 or v6) rather than a domain name — the case that can never be offered an install. */
+function hostnameIsIp(host = globalThis.location?.hostname || '') {
+  return /^[\d.]+$/.test(host) || host.includes(':');
+}
+
+/**
+ * The live line the dialog shows instead of a guess: secure context, whether this browser can issue an install offer
+ * at all, whether /sw.js is registered, the manifest link and the origin. Diagnostic output, not interface text, so it
+ * is not translated — the server owner reads it.
+ */
+function PwaDiag() {
+  const [line, setLine] = useState('…');
+  const [note, setNote] = useState(null);   // set once 复制诊断信息 was tried: its result, or the fallback message
+  const [related, setRelated] = useState(-1);   // the browser's own answer: how many apps of this page it has installed
+  useEffect(() => {
+    let on = true;
+    (async () => {
+      let sw = 'none';
+      try {
+        const reg = await globalThis.navigator?.serviceWorker?.getRegistration?.();
+        sw = !reg ? 'none' : reg.active ? 'active' : reg.waiting ? 'waiting' : reg.installing ? 'installing' : 'idle';
+      } catch { sw = 'error'; }
+      // -1 when this browser has no such API; 1 means the origin is already an installed app, which is why it is
+      // never offered an install again.
+      let rel = -1;
+      try {
+        const list = await globalThis.navigator?.getInstalledRelatedApps?.();
+        rel = Array.isArray(list) ? list.length : -1;
+      } catch { rel = -1; }
+      if (!on) return;
+      setRelated(rel);
+      setLine([
+        `secure=${globalThis.isSecureContext === true}`,
+        `offer=${'BeforeInstallPromptEvent' in globalThis ? 'supported' : 'unsupported'}`,
+        `sw=${sw}`,
+        `manifest=${globalThis.document?.querySelector?.('link[rel="manifest"]')?.getAttribute('href') || 'missing'}`,
+        `origin=${globalThis.location?.origin}`,
+        `installed=${rel < 0 ? 'unknown' : rel}`,
+      ].join(' · '));
+    })();
+    return () => { on = false; };
+  }, []);
+  const copy = () => {
+    const clip = globalThis.navigator?.clipboard;
+    const fail = () => setNote({ text: t('无法写入剪贴板，请手动复制下面的内容'), manual: true });
+    if (typeof clip?.writeText !== 'function') { fail(); return; }
+    try { clip.writeText(line).then(() => setNote({ text: t('已复制到剪贴板') }), fail); } catch { fail(); }
+  };
+  return html`<div>
+    <p class="modal__text">
+      <code>${line}</code>
+      {' '}<${Button} variant="ghost" size="sm" icon="copy" onClick=${copy}>${t('复制诊断信息')}<//>
+      ${note ? html`<br /><span>${note.text}</span>` : null}
+      ${note?.manual ? html`<br /><textarea rows="3" readonly value=${line} onFocus=${(e) => e.currentTarget.select()}></textarea>` : null}
+    </p>
+    ${related > 0 ? html`<p class="modal__text">${t('这个浏览器已经把本页面安装为应用了：请到应用列表（Edge 是 edge://apps）里打开它，不需要再安装一次。')}</p>` : null}
+  </div>`;
+}
+
+/**
+ * What a browser that sent no `beforeinstallprompt` gets instead of a silent no-op (ui/components.js DialogHost,
+ * mounted once by main.js). Chromium issues the offer only once the visitor has interacted with the page, so this
+ * keeps listening while the dialog is open and installs without a second click; an IP origin is additionally offered
+ * the installable domain, because its certificate never lets the browser offer one at all.
+ */
+export function explainPwaInstall() {
+  const ip = hostnameIsIp();
+  const text = html`<div class="selectable">
+    <p class="modal__text">${ip ? t('你正在用 IP 地址访问，浏览器不会允许安装。') : t('浏览器没有发出安装邀请。')}</p>
+    ${ip ? html`<p class="modal__text">${t('改用域名打开本页面后即可一键安装：')}<br /><code>${PWA_ORIGIN}</code></p>` : null}
+    <p class="modal__text">${'BeforeInstallPromptEvent' in globalThis
+      ? t('正在等待浏览器发出安装邀请，收到后会自动开始安装。')
+      : t('这个浏览器不会发出安装邀请（非 Chromium 内核，或被浏览器设置禁用）。')}</p>
+    <p class="modal__text">${t('手动安装：电脑点地址栏右侧的安装图标，或在菜单（⋯ / ⋮）里找「应用 → 安装此网站为应用」；手机 Chrome 点 ⋮ → 安装应用 / 添加到主屏幕。')}</p>
+    <${PwaDiag} />
+  </div>`;
+  // The offer usually lands only after this very click: catch it for a while and go straight to the native install.
+  let off = () => {};
+  const deadline = setTimeout(() => off(), 20000);
+  off = pwaInstall.subscribe((ok) => {
+    if (!ok) return;
+    clearTimeout(deadline);
+    off();
+    closeAllDialogs();
+    void pwaInstall.request();
+  });
+  if (!ip) { alertDialog({ title: t('添加到桌面'), micro: 'INSTALL', text, okText: t('关闭') }); return; }
+  confirmDialog({ title: t('添加到桌面'), micro: 'INSTALL', text, okText: t('用域名打开'), cancelText: t('关闭') })
+    .then((ok) => { if (ok) { clearTimeout(deadline); off(); globalThis.location.assign(`${PWA_ORIGIN}/`); } }, () => {});
+}
+
+/**
+ * Always on the page: one obvious entry point. A browser that sent an install offer installs in one click; any other
+ * one gets explainPwaInstall. Only the installed app itself hides the button.
+ * `square`: the glyph alone (the lobby's top bar, beside ⚙ / 📖), the name stays title / aria-label.
+ * `foot`: an outlined footer chip matching 公告 / 本服务器安装了 N 个插件 (the title footer).
+ */
+export function PwaInstallButton({ class: cls = '', size = 'sm', square = false, foot = false }) {
   const [available, setAvailable] = useState(pwaInstall.available);
+  const [isApp] = useState(runningAsInstalledApp);
   useEffect(() => pwaInstall.subscribe(setAvailable), []);
-  if (!available) return null;
+  if (isApp) return null;
+  const onClick = () => { if (available) pwaInstall.request(); else explainPwaInstall(); };
+  // foot: the title-footer chip, styled exactly like its neighbours 公告 / 本服务器安装了 N 个插件 (title.css .title-pwa-foot)
+  if (foot) return html`<button type="button" class=${`title-pwa-foot tapx ${cls}`.trim()} data-testid="pwa-install"
+    title=${t('添加到桌面')} aria-label=${t('添加到桌面')} onClick=${onClick}><${Icon} name="homePlus" />${t('添加到桌面')}</button>`;
   return html`<${Button} variant="secondary" size=${size} icon="homePlus" square=${square} class=${cls}
     title=${t('添加到桌面')} aria-label=${t('添加到桌面')}
-    data-testid="pwa-install" onClick=${() => pwaInstall.request()}>${square ? null : t('添加到桌面')}<//>`;
+    data-testid="pwa-install" onClick=${onClick}>${square ? null : t('添加到桌面')}<//>`;
 }
 
 export function updateRotateHintPwaI18n(doc = globalThis.document) {

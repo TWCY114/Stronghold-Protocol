@@ -187,6 +187,11 @@ hook('server/match/host/proxy.js',
   `  diag() { return this.disposed ? Promise.resolve(null) : this._request('diag', [], true); }\n`,
   `  /** [auth-fork] admin live-match editing (state / funds / round), forwarded to the worker's Match.adminEdit. */\n  adminEdit(playerId, cmd, args) { return this._request('adminEdit', [playerId, cmd, args || {}]); }\n`);
 
+// ---- public/js/ui/device.js: fork install origin (original game's port → fork's port) ------------------------------
+hook('public/js/ui/device.js',
+  `export const PWA_ORIGIN = 'https://twcy.antu.fun:34673';\n`,
+  `export const PWA_ORIGIN = 'https://twcy.antu.fun:34671';\n`, { mode: 'replace' });
+
 console.log(`\n钩子: 新打 ${applied}, 已存在跳过 ${skipped}, 失败 ${failed}`);
 if (failed) { console.error('有锚点失败：官方重构了钩子宿主，请人工适配后重跑。'); process.exit(1); }
 

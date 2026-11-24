@@ -308,14 +308,22 @@ html[data-script="alphabetic"] .title-login .btn--xl { letter-spacing: .3em; }
   right: .44rem;
   bottom: .3rem;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: flex-end;
   flex-wrap: wrap;
-  gap: .12rem .2rem;
+  gap: .12rem .08rem;
   font-size: calc(.13 * var(--t));
   color: var(--text-dim);
 }
 .title-foot__meta { display: flex; align-items: flex-end; gap: .16rem; flex-wrap: wrap; justify-content: flex-end; }
+/* 版权 + 版本 as one right-aligned group; margin-left:auto absorbs the free space so the buttons stay tight on the left. */
+.title-foot__right { margin-left: auto; display: inline-flex; align-items: flex-end; gap: .2rem; flex-wrap: wrap; justify-content: flex-end; }
+/* the footer chips (公告 / 添加到桌面 / 插件) as one tight group: space-between treats it as a single item. */
+.title-foot__actions { display: inline-flex; align-items: flex-end; gap: .08rem; flex-wrap: wrap; }
+/* one size for the three chips: 公告 is .15 / no min-height by default, the other two were .13 / .34rem. */
+.title-foot__actions .notice-entry,
+.title-foot__actions .title-pwa-foot,
+.title-foot__actions .title-plugins { font-size: calc(.15 * var(--t)); min-height: .34rem; }
 .title-repo { color: inherit; text-decoration: none; border-bottom: 1px solid transparent; }
 .title-repo:hover, .title-repo:focus-visible { color: var(--text-hi); border-bottom-color: currentColor; }
 /* a development build (shared/constants.js DEV_BUILD): an unmissable tag in the footer */
@@ -334,6 +342,13 @@ html[data-script="alphabetic"] .title-login .btn--xl { letter-spacing: .3em; }
   border: 1px solid rgba(255, 159, 67, .5); color: #ffb066; background: rgba(255, 159, 67, .08); font-size: inherit;
 }
 .title-plugins .icon { width: .15rem; height: .15rem; }
+/* 添加到桌面 (ui/device.js PwaInstallButton foot): the same outlined chip as .title-plugins, between 公告 and it. */
+.title-pwa-foot {
+  display: inline-flex; align-items: center; gap: .06rem; padding: .03rem .1rem; min-height: .34rem;
+  border: 1px solid rgba(255, 159, 67, .5); color: #ffb066; background: rgba(255, 159, 67, .08); font-size: inherit;
+  cursor: pointer;
+}
+.title-pwa-foot .icon { width: .15rem; height: .15rem; }
 /* 公告 (ui/notices.js): absent when the catalogue has none. The dot is unread. The popup body keeps newlines as text. */
 .notice-slot { display: inline-flex; align-items: center; }
 .notice-entry {

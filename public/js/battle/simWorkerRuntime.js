@@ -1,11 +1,16 @@
 // Kept separate from the browser port so the same engine/packets can be verified with a Node worker.
 import { InPageSimHost } from './simHost.js';
+import { trackCombat } from './metrics.js';
 
 export function createSimWorker({ loadSim, prepareScripts = browserScripts } = {}) {
   const host = new InPageSimHost(loadSim ? { loadSim } : {});
   let loaded = false;
   let loadingStarted = false;
   let installScripts = null;
+  // 作战统计 counted here: this side holds the real Battle, with its `damaged` hook and its `heal` (the page
+  // has wire state only). The main thread pulls the record with the `combat` command; the numbers are the
+  // engine's own counters, so a gameplay-plugin set's battle reads exactly like an official one.
+  let combat = null;
   const packet = (step = null) => {
     const b = host.battle;
     const pids = (host.spec.players || []).map(p => p.playerId);
@@ -24,6 +29,9 @@ export function createSimWorker({ loadSim, prepareScripts = browserScripts } = {
       ops: Object.fromEntries(pids.map(id => [id, host.ownerOps(id)])), meter: { lp: host.meter.lp },
       progress: host.progress(), left: host.spec.kind === 'unite' ? host.uniteLeft() : null,
       result: b.finished ? host.compactResult({ bossLike: ['boss', 'hidden'].includes(host.spec.kind), battleId: host.spec.battleId }) : null,
+      // The final 作战统计 rides the packet that finished the battle: the runner archives its record in the same
+      // turn, and an async pull could not have answered yet.
+      combat: b.finished && combat ? combat() : null,
     };
   };
   return async (method, args = []) => {
@@ -48,16 +56,17 @@ export function createSimWorker({ loadSim, prepareScripts = browserScripts } = {
     }
     if (!loaded) throw new Error('simulation not loaded');
     switch (method) {
-      case 'start': host.start(args[0]); return packet();
+      case 'start': host.start(args[0]); combat?.stop?.(); combat = trackCombat(host.battle); return packet();
       case 'step': {
         if (!Number.isInteger(args[0]) || args[0] < 0 || args[0] > 600) throw new Error('invalid step count');
         return packet(host.step(args[0], args[1] || {}));
       }
       case 'unitStats': return host.unitStats(args[0]);
+      case 'combat': return combat ? combat() : null;
       case 'ownerOps': return host.ownerOps(args[0]);
       case 'syncPool': host.syncPool(...args); return true;
       case 'forceEnd': host.forceEnd(args[0]); return packet();
-      case 'stop': host.stop(); return true;
+      case 'stop': host.stop(); combat?.stop?.(); combat = null; return true;
       default: throw new Error('unknown simulation command');
     }
   };
