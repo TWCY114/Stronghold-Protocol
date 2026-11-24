@@ -50,6 +50,7 @@ import { requireLogin } from './auth/gate.js'; // [auth-fork]
 import { installChat } from './chat/panel.js'; // [auth-fork]
 import { installFriends } from './chat/friends.js'; // [auth-fork]
 import { installProfile } from './chat/profile.js'; // [auth-fork]
+import { installConvert } from './auth/convert.js'; // [auth-fork]
 import { store, useStore, emptyMatch, selectRoute, sessionResetNotice, isSpectating } from './store.js';
 import { data } from './data.js';
 import { GAME_FILES } from './ui/gameComponents.js';
@@ -448,6 +449,7 @@ async function boot() {
   installChat({ net }); // [auth-fork]
   installFriends(); // [auth-fork]
   installProfile(); // [auth-fork]
+  installConvert(); // [auth-fork]
   installStatsRecorder(store); // follows the match on screen, so a 放弃模拟 can be recorded (ui/stats.js)
   // the loadout / 干员持有 / 自选 settings by operator, shown for the data on screen (DESIGN §35.23; a v1 store migrates)
   installSettingsViews();

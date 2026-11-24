@@ -73,3 +73,24 @@ body {
 .login-token .tok-actions button { flex: 1; padding: 11px 0; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 8px; border: none; }
 .login-token .tok-copy { color: var(--mint-hi); background: var(--mint-a20); border: 1px solid var(--mint-dim) !important; }
 .login-token .tok-enter { color: #04140f; background: var(--mint); }
+/* [account-plus] e-mail code row + same-device guidance */
+.login-mode { gap: 14px; flex-wrap: wrap; }
+.login-code-row { display: flex; gap: 8px; }
+.login-code-row input {
+  flex: 1; min-width: 0; padding: 11px 12px; font-size: 14px; color: var(--text); background: #0d1117;
+  border: 1px solid var(--line); border-radius: 8px; outline: none; transition: .15s; font-family: inherit;
+}
+.login-code-row input:focus { border-color: var(--mint); }
+.login-sendcode {
+  flex: 0 0 auto; padding: 0 12px; font-size: 12px; cursor: pointer; white-space: nowrap;
+  color: var(--mint-hi); background: var(--mint-a10); border: 1px solid var(--mint-dim); border-radius: 8px; transition: .15s;
+}
+.login-sendcode:hover { background: var(--mint-a20); }
+.login-sendcode:disabled { opacity: .6; cursor: default; }
+.login-device {
+  display: flex; align-items: center; gap: 8px; padding: 9px 11px; font-size: 12px; line-height: 1.4;
+  color: var(--mint-hi); background: var(--mint-a10); border: 1px solid var(--mint-dim); border-radius: 8px;
+}
+.login-device.is-hidden { display: none; }
+.login-device span { flex: 1; }
+.login-device button { flex: 0 0 auto; padding: 4px 10px; font-size: 12px; cursor: pointer; color: #04140f; background: var(--mint); border: none; border-radius: 6px; }

@@ -145,6 +145,12 @@ hook('public/js/main.js',
 hook('public/js/main.js',
   `  installFriends(); // [auth-fork]\n`,
   `  installProfile(); // [auth-fork]\n`);
+hook('public/js/main.js',
+  `import { installProfile } from './chat/profile.js'; // [auth-fork]\n`,
+  `import { installConvert } from './auth/convert.js'; // [auth-fork]\n`);
+hook('public/js/main.js',
+  `  installProfile(); // [auth-fork]\n`,
+  `  installConvert(); // [auth-fork]\n`);
 
 // ---- public/js/screens/lobby.js: friends button right of 玩法说明 ----------------------------------------------------
 hook('public/js/screens/lobby.js',
@@ -179,7 +185,8 @@ const check = [...touched,
   'server/auth/ws.js', 'server/auth/session.js', 'public/js/auth/gate.js', 'public/login/login.js',
   'server/admin/index.js', 'server/admin/http.js',
   'server/chat/store.js', 'server/chat/chat.js', 'server/chat/index.js', 'server/chat/ws.js', 'public/js/chat/panel.js',
-  'public/js/chat/friends.js', 'public/js/chat/settings.js', 'public/js/chat/pref.js', 'public/js/auth/logout.js', 'public/js/chat/profile.js'];
+  'public/js/chat/friends.js', 'public/js/chat/settings.js', 'public/js/chat/pref.js', 'public/js/auth/logout.js', 'public/js/chat/profile.js',
+  'server/auth/mailer.js', 'public/js/auth/fingerprint.js', 'public/js/auth/convert.js', 'public/login/login.js'];
 let bad = 0;
 for (const rel of check) {
   const r = spawnSync(process.execPath, ['--check', join(ROOT, rel)], { encoding: 'utf8' });

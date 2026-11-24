@@ -20,6 +20,7 @@
         <div class="login-mode" data-modefor="login">
           <button type="button" data-mode="token" class="is-active">token 登录</button>
           <button type="button" data-mode="password">密码登录</button>
+          <button type="button" data-mode="email">邮箱登录</button>
         </div>
         <div class="login-fields" data-fields="token">
           <label class="login-field">
@@ -31,6 +32,15 @@
           <label class="login-field"><input name="username" type="text" autocomplete="username" maxlength="16" placeholder="用户名"></label>
           <label class="login-field"><input name="password" type="password" autocomplete="current-password" maxlength="64" placeholder="密码"></label>
         </div>
+        <div class="login-fields is-hidden" data-fields="email">
+          <label class="login-field"><input name="email" type="email" autocomplete="email" placeholder="邮箱"></label>
+          <label class="login-field"><input name="password" type="password" autocomplete="current-password" maxlength="64" placeholder="密码（密码登录时填）"></label>
+          <div class="login-code-row">
+            <input name="code" type="text" inputmode="numeric" maxlength="6" placeholder="验证码（免密登录时填）">
+            <button type="button" class="login-sendcode" data-purpose="login">发送验证码</button>
+          </div>
+          <p class="login-hint">填密码→密码登录；或点「发送验证码」填码→免密登录。</p>
+        </div>
         <button class="login-submit" type="submit">登 录</button>
         <div class="login-links">
           <button type="button" data-go="register">注册账号</button>
@@ -40,9 +50,14 @@
 
       <form class="login-form is-hidden" data-panel="register" autocomplete="on">
         <button type="button" class="login-back" data-go="login">← 返回登录</button>
+        <div class="login-device is-hidden" id="device-note">
+          <span id="device-note-text">该设备已注册过账号。</span>
+          <button type="button" data-go="login">去登录</button>
+        </div>
         <div class="login-mode" data-modefor="register">
           <button type="button" data-mode="token" class="is-active">仅使用 token</button>
           <button type="button" data-mode="password">密码注册</button>
+          <button type="button" data-mode="email">邮箱注册</button>
         </div>
         <div class="login-fields" data-fields="token">
           <label class="login-field"><input name="username" type="text" autocomplete="username" maxlength="16" placeholder="用户名（2–16 位字母 / 数字 / 中文）" required></label>
@@ -51,6 +66,16 @@
         <div class="login-fields is-hidden" data-fields="password">
           <label class="login-field"><input name="username" type="text" autocomplete="username" maxlength="16" placeholder="用户名"></label>
           <label class="login-field"><input name="password" type="password" autocomplete="new-password" maxlength="64" placeholder="密码（6–64 位）"></label>
+          <label class="login-field"><input name="confirm" type="password" autocomplete="new-password" maxlength="64" placeholder="确认密码"></label>
+        </div>
+        <div class="login-fields is-hidden" data-fields="email">
+          <label class="login-field"><input name="username" type="text" autocomplete="username" maxlength="16" placeholder="用户名"></label>
+          <label class="login-field"><input name="email" type="email" autocomplete="email" placeholder="邮箱"></label>
+          <div class="login-code-row">
+            <input name="code" type="text" inputmode="numeric" maxlength="6" placeholder="邮箱验证码">
+            <button type="button" class="login-sendcode" data-purpose="register">发送验证码</button>
+          </div>
+          <label class="login-field"><input name="password" type="password" autocomplete="new-password" maxlength="64" placeholder="设置密码（6–64 位）"></label>
           <label class="login-field"><input name="confirm" type="password" autocomplete="new-password" maxlength="64" placeholder="确认密码"></label>
         </div>
         <button class="login-submit" type="submit">注 册</button>

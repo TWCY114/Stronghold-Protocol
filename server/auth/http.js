@@ -112,23 +112,42 @@ async function handle(req, res, parts) {
     sendJson(req, res, 200, { ok: true, friends });
     return true;
   }
+  if (path === '/api/auth/device-check') {
+    const fp = parts.query ? new URLSearchParams(parts.query).get('fp') || '' : '';
+    sendJson(req, res, 200, { ok: true, ...auth.deviceCheck(fp) });
+    return true;
+  }
+  if (path === '/api/auth/email-config') {
+    sendJson(req, res, 200, { ok: true, configured: auth.emailConfigured });
+    return true;
+  }
 
   if (req.method !== 'POST') { sendError(req, res, 405, 'Method not allowed'); return true; }
   const body = await readBody(req);
   if (!body || typeof body !== 'object') { sendJson(req, res, 400, { ok: false, error: 'bad_body' }); return true; }
 
   if (path === '/api/auth/register') {
-    const r = auth.register(body.username, body.password, { ip, mode: body.mode });
+    const r = auth.register(body.username, body.password, { ip, mode: body.mode, email: body.email, code: body.code, deviceFp: body.deviceFp });
     sendJson(req, res, r.ok ? 200 : 400, r);
     return true;
   }
   if (path === '/api/auth/login') {
-    const r = auth.login(body.username, body.password, { ip, mode: body.mode, token: body.token });
+    const r = auth.login(body.username, body.password, { ip, mode: body.mode, token: body.token, email: body.email, code: body.code });
     sendJson(req, res, r.ok ? 200 : 401, r);
     return true;
   }
   if (path === '/api/auth/guest') {
     const r = auth.guest(body.name, { ip });
+    sendJson(req, res, r.ok ? 200 : 400, r);
+    return true;
+  }
+  if (path === '/api/auth/email/send-code') {
+    const r = await auth.sendEmailCode(body.email, body.purpose || 'register', { ip });
+    sendJson(req, res, r.ok ? 200 : 400, r);
+    return true;
+  }
+  if (path === '/api/auth/convert-guest') {
+    const r = auth.convertGuest(bearer(req, parts), { username: body.username, password: body.password, email: body.email, code: body.code, deviceFp: body.deviceFp, mode: body.mode, ip });
     sendJson(req, res, r.ok ? 200 : 400, r);
     return true;
   }

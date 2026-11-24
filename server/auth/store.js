@@ -65,6 +65,18 @@ export function createAuthStore({ dbPath, log }) {
   db.exec('DROP INDEX IF EXISTS idx_accounts_tag');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_disc ON accounts(discriminator)');
 
+  // [account-plus] email login + per-device registration guidance. email is unique (sparse, many NULLs allowed); device_fp
+  // identifies a browser device so a second registration on the same device is guided to the existing account, not duplicated.
+  // email_codes holds short-lived verification codes (register / login / reset), one row per email+purpose.
+  if (!acctCols.includes('email')) db.exec('ALTER TABLE accounts ADD COLUMN email TEXT');
+  if (!acctCols.includes('device_fp')) db.exec('ALTER TABLE accounts ADD COLUMN device_fp TEXT');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_email ON accounts(email) WHERE email IS NOT NULL');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_accounts_device ON accounts(device_fp)');
+  db.exec(`CREATE TABLE IF NOT EXISTS email_codes (
+    email TEXT NOT NULL, code TEXT NOT NULL, purpose TEXT NOT NULL,
+    expires_at INTEGER NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL,
+    PRIMARY KEY (email, purpose))`);
+
   const q = {
     insAccount: db.prepare('INSERT INTO accounts(username, pass_hash, role, created_at, display_name, discriminator) VALUES(?,?,?,?,?,?)'),
     byNameDisc: db.prepare('SELECT * FROM accounts WHERE display_name = ? AND discriminator = ?'),
@@ -89,21 +101,41 @@ export function createAuthStore({ dbPath, log }) {
     delToken: db.prepare('DELETE FROM tokens WHERE token_hash = ?'),
     purge: db.prepare('DELETE FROM tokens WHERE expires_at < ?'),
     countAccounts: db.prepare('SELECT COUNT(*) AS n FROM accounts'),
+    byEmail: db.prepare('SELECT * FROM accounts WHERE email = ?'),
+    byDeviceFp: db.prepare('SELECT id, display_name, discriminator, username FROM accounts WHERE device_fp = ? ORDER BY id LIMIT 1'),
+    setEmailDevice: db.prepare('UPDATE accounts SET email = ?, device_fp = ? WHERE id = ?'),
+    insCode: db.prepare(`INSERT INTO email_codes(email, code, purpose, expires_at, attempts, created_at) VALUES(?,?,?,?,0,?)
+      ON CONFLICT(email, purpose) DO UPDATE SET code=excluded.code, expires_at=excluded.expires_at, attempts=0, created_at=excluded.created_at`),
+    getCode: db.prepare('SELECT * FROM email_codes WHERE email = ? AND purpose = ?'),
+    delCode: db.prepare('DELETE FROM email_codes WHERE email = ? AND purpose = ?'),
+    bumpCode: db.prepare('UPDATE email_codes SET attempts = attempts + 1 WHERE email = ? AND purpose = ?'),
+    purgeCodes: db.prepare('DELETE FROM email_codes WHERE expires_at < ?'),
   };
 
   return {
     db,
     /** @returns {object|undefined} the created account row (without the hash) */
-    createAccount(username, passHash, role = 'user', now = Date.now()) {
+    createAccount(username, passHash, role = 'user', now = Date.now(), extra = {}) {
       const info = q.insAccount.run(username, passHash, role, now, username, freeDisc());
-      return this.accountById(Number(info.lastInsertRowid));
+      const id = Number(info.lastInsertRowid);
+      if (extra.email || extra.deviceFp) q.setEmailDevice.run(extra.email || null, extra.deviceFp || null, id);
+      return this.accountById(id);
     },
     accountByName(username) { return q.byName.get(username); },
     accountById(id) { return q.byId.get(id); },
+    /** [account-plus] lookup by email (normalized lower-case) / by browser device fingerprint. */
+    accountByEmail(email) { const e = String(email ?? '').trim().toLowerCase(); return e ? q.byEmail.get(e) : undefined; },
+    accountByDevice(fp) { return fp ? q.byDeviceFp.get(fp) : undefined; },
+    setEmailDevice(id, email, fp) { q.setEmailDevice.run(email ? String(email).trim().toLowerCase() : null, fp || null, id); },
+    /** [account-plus] verification-code helpers (one live code per email+purpose). */
+    putCode(email, code, purpose, expiresAt, now = Date.now()) { q.insCode.run(String(email).trim().toLowerCase(), code, purpose, expiresAt, now); },
+    getCode(email, purpose) { return q.getCode.get(String(email).trim().toLowerCase(), purpose); },
+    delCode(email, purpose) { q.delCode.run(String(email).trim().toLowerCase(), purpose); },
+    bumpCode(email, purpose) { q.bumpCode.run(String(email).trim().toLowerCase(), purpose); },
     /** [player-id] public identity {name, disc, tag} of an account, or null. */
     tagOf(id) { const r = q.tagById.get(id); return r && r.display_name != null ? { name: r.display_name, disc: r.discriminator, tag: `${r.display_name}#${r.discriminator}` } : null; },
     /** [player-id] full public profile of an account (no credentials), or null. */
-    profileOf(id) { const r = q.byId.get(id); if (!r) return null; return { id: r.id, name: r.display_name ?? r.username, disc: r.discriminator, tag: `${r.display_name ?? r.username}#${r.discriminator}`, role: r.role, createdAt: r.created_at }; },
+    profileOf(id) { const r = q.byId.get(id); if (!r) return null; return { id: r.id, name: r.display_name ?? r.username, disc: r.discriminator, tag: `${r.display_name ?? r.username}#${r.discriminator}`, role: r.role, createdAt: r.created_at, email: r.email ?? null }; },
     /** [player-id] search "name#disc" (exact one) or "name" (all same-name players). */
     searchPlayers(query) {
       const s = String(query ?? '').trim();
@@ -133,7 +165,7 @@ export function createAuthStore({ dbPath, log }) {
     tokenByHash(tokenHash) { return q.byTokenHash.get(tokenHash); },
     revokeToken(tokenHash) { q.delToken.run(tokenHash); },
     revokeAccountTokens(accountId) { q.delAccountTokens.run(accountId); },
-    purgeExpired(now = Date.now()) { q.purge.run(now); },
+    purgeExpired(now = Date.now()) { q.purge.run(now); q.purgeCodes.run(now); },
     close() { try { db.close(); } catch (e) { log?.error?.('[auth] store close', e); } },
   };
 }
