@@ -28,12 +28,14 @@ await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { ke
 await page.waitForSelector('#sp-chat.is-open', { timeout: 5000 });
 await sleep(300);
 // fill the log with own lines so there is something to scroll through (lobby rate = 3 msgs / 5 s)
-for (let round = 0; round < 3; round++) {
+for (let round = 0; round < 5; round++) {
   for (let i = 0; i < 3; i++) { await page.type('.sp-chat-input', `历史消息 ${round}-${i}`); await page.keyboard.press('Enter'); await sleep(120); }
   await sleep(5200);
 }
 const filled = await page.evaluate(() => { const l = document.querySelector('.sp-chat-log'); return { n: l.querySelectorAll('.sp-chat-line').length, top: l.scrollTop, h: l.scrollHeight, ch: l.clientHeight }; });
 ok(filled.n >= 8 && filled.h > filled.ch + 40, '日志已填满可滚动', JSON.stringify(filled));
+const fade = await page.evaluate(() => { const ls = [...document.querySelectorAll('.sp-chat-line')]; return { n: ls.length, old: ls.filter((x) => x.classList.contains('old')).length, op: ls.length ? getComputedStyle(ls[0]).opacity : null }; });
+ok(fade.n > 12 && fade.old === 0 && fade.op === '1', '超过12条后旧消息不再变淡', JSON.stringify(fade));
 // scroll up to read history
 await page.evaluate(() => { document.querySelector('.sp-chat-log').scrollTop = 0; });
 await sleep(200);

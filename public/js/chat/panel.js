@@ -27,7 +27,6 @@ const CSS = `
 .sp-chat-line .who.clickable:hover{text-decoration:underline}
 .sp-chat-line .who.guest{color:#9aa7a1}
 .sp-chat-line.mine .who{color:var(--mint-500,#4ed8af)}
-.sp-chat-line.old{opacity:.5}
 @keyframes spFade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
 .sp-chat-empty{color:#8b949e;font-size:11px;padding:6px 2px;text-shadow:0 1px 3px rgba(0,0,0,.9)}
 .sp-chat-tabs{display:none;gap:5px;padding:6px 8px 0}
@@ -142,10 +141,8 @@ export function installChat({ net }) {
     }
     return d;
   }
-  function markOld() {
-    const nodes = log.querySelectorAll('.sp-chat-line');
-    nodes.forEach((n, i) => n.classList.toggle('old', i < nodes.length - 12));
-  }
+  // [chat-fade-fix] every line keeps full opacity: the old "dim everything older than the last 12 lines" rule made
+  // history unreadable once a channel passed 12 messages (user-reported bug).
   // [chat-scroll] stick-to-bottom ONLY while the reader is already at the bottom (or just sent a line). Scrolling up to
   // read history must survive new messages, history merges and rename relabels instead of snapping back down.
   let stick = true, rebuilding = false;
@@ -158,7 +155,6 @@ export function installChat({ net }) {
     log.append(lineNode(m, true));
     let removed = 0;
     while (log.querySelectorAll('.sp-chat-line').length > 40) { const n = log.querySelector('.sp-chat-line'); removed += n.offsetHeight + 3; n.remove(); }
-    markOld();
     if (keep) toBottom(); else log.scrollTop = Math.max(0, prevTop - removed);
   }
   function rebuildLog(forceBottom) {
@@ -168,7 +164,6 @@ export function installChat({ net }) {
     const arr = state.msg[state.channel] || [];
     if (!arr.length) log.append(el('div', 'sp-chat-empty', state.channel === 'room' ? '房间频道暂无消息' : '世界频道暂无消息'));
     else for (const m of arr.slice(-40)) log.append(lineNode(m, false));
-    markOld();
     rebuilding = false;
     if (forceBottom || stick) toBottom(); else log.scrollTop = Math.max(0, Math.min(prevTop, log.scrollHeight - log.clientHeight));
   }
