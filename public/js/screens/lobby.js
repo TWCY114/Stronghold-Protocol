@@ -47,7 +47,7 @@ import { OwnBackdrop, LobbyScene, LobbyMediaButton } from '../ui/lobbyMedia.js';
 import { toast, toastError } from '../ui/toasts.js';
 import { GuideButton, openGuide } from '../ui/guide.js';
 import { FriendsButton } from '../chat/friends.js'; // [auth-fork]
-import { ProfileButton } from '../chat/profile.js'; // [auth-fork]
+import { ProfileButton, AdminButton } from '../chat/profile.js'; // [auth-fork]
 import { RadarScene, CreateArt, JoinArt } from '../ui/allyArt.js';
 import { ProtocolScene } from '../ui/protocolScene.js';
 import { AchievementDialog, useStatsOpen } from './stats.js';
@@ -866,6 +866,7 @@ export function LobbyScreen() {
           <${LobbyMediaButton} />
           <${PwaInstallButton} class="lobby-pwa" square=${true} />
           <${ProfileButton} class="lobby-profile" variant="secondary" square=${true} />
+          <${AdminButton} class="lobby-admin" />
         </div>
       </div>
       <div class="topbar__right">

@@ -160,13 +160,14 @@ hook('public/js/screens/lobby.js',
   `          <\${GuideButton} class="lobby-guide" variant="secondary" square=\${true} />\n`,
   `          <\${FriendsButton} class="lobby-friends" variant="secondary" square=\${true} />\n`);
 
-// ---- public/js/screens/lobby.js: profile button right of 添加到桌面 --------------------------------------------------
+// ---- public/js/screens/lobby.js: profile button right of 添加到桌面 + admin entry right of profile ------------------
 hook('public/js/screens/lobby.js',
   `import { FriendsButton } from '../chat/friends.js'; // [auth-fork]\n`,
-  `import { ProfileButton } from '../chat/profile.js'; // [auth-fork]\n`);
+  `import { ProfileButton, AdminButton } from '../chat/profile.js'; // [auth-fork]\n`);
 hook('public/js/screens/lobby.js',
   `          <\${PwaInstallButton} class="lobby-pwa" square=\${true} />\n`,
-  `          <\${ProfileButton} class="lobby-profile" variant="secondary" square=\${true} />\n`);
+  `          <\${ProfileButton} class="lobby-profile" variant="secondary" square=\${true} />\n`
+  + `          <\${AdminButton} class="lobby-admin" />\n`);
 
 // ---- public/js/ui/settings.js: chat on/off switch in the plugin manager (界面插件) -----------------------------------
 hook('public/js/ui/settings.js',

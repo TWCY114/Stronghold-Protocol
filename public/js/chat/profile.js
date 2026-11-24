@@ -186,6 +186,30 @@ export function ProfileButton({ class: cls, size = 'sm', variant = 'ghost', squa
     ${card ? html`<${PlayerCard} />` : null}`;
 }
 
+// [auth-fork] lobby top-bar admin entry, rendered immediately right of ProfileButton. Admin-only: it checks the signed-in
+// account's role via /api/player/me and renders nothing for non-admins. Opens the fork admin console in a new tab.
+let adminCssDone = false;
+function ensureAdminCss() {
+  if (adminCssDone) return; adminCssDone = true;
+  const st = document.createElement('style');
+  st.textContent = '.lobby-admin.btn{background:var(--mint-500,#4ed8af);border-color:var(--mint-500,#4ed8af);color:#04140f}'
+    + '.lobby-admin.btn:hover{background:var(--mint-400,#59f4ca);border-color:var(--mint-400,#59f4ca);box-shadow:0 0 .08rem var(--mint-a35,rgba(78,216,175,.4))}'
+    + '.lobby-admin .btn__icon{color:#04140f}';
+  document.head.appendChild(st);
+}
+export function AdminButton({ class: cls = '' }) {
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    pget('/api/player/me').then((r) => { if (alive && r.ok && r.profile?.role === 'admin') setIsAdmin(true); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  if (!isAdmin) return null;
+  ensureAdminCss();
+  return html`<${Button} variant="secondary" size="sm" square=${true} icon="shield" class=${'lobby-admin ' + cls}
+    onClick=${() => window.open('/admin', '_blank', 'noopener')} title="进入管理后台" aria-label="管理后台" data-testid="lobby-admin" />`;
+}
+
 const AK_CSS = `
 .ak-profile .modal__body{padding:0}
 .ak-banner{display:flex;align-items:baseline;justify-content:space-between;padding:.12rem .18rem;background:var(--mint-a10,rgba(78,216,175,.1));border-bottom:1px solid var(--mint-a35,rgba(78,216,175,.3))}
