@@ -5,11 +5,12 @@
 import { net } from '../net.js';
 import { createStore, useStore } from '../store.js';
 import { html, Button, Modal, Icon } from '../ui/components.js';
+import { render } from '../../vendor/preact.module.js';
 import { useState, useEffect, useRef } from '../../vendor/hooks.module.js';
 import { getToken } from '../auth/gate.js';
 
-const ERR = { need_account: '该功能需注册账号', bad_target: '目标无效', already_friends: '已经是好友', no_request: '没有该申请', not_friends: '对方不是你的好友', empty: '不能发空消息', rate_limited: '发言太快，稍等' };
-const fstore = createStore({ own: null, friends: [], requests: [], pmTarget: null, pmName: '', pm: [], open: false });
+const ERR = { need_account: '该功能需注册账号', bad_target: '目标无效', already_friends: '已经是好友', no_request: '没有该申请', not_friends: '对方不是你的好友', empty: '不能发空消息', rate_limited: '发言太快，稍等', not_online: '对方不在线', no_room: '你不在同盟中' };
+const fstore = createStore({ own: null, friends: [], requests: [], pmTarget: null, pmName: '', pm: [], open: false, invitePicker: false, inviteRoom: null });
 const hhmm = (t) => new Date(t).toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit' });
 
 let toastEl = null, toastTimer = null;
@@ -37,6 +38,19 @@ export function installFriends() {
     else if (m.fromId !== fstore.get().own) toast(`新私聊：${m.fromName || '账号' + m.fromId}`);
   });
   net.on('pm.history', (m) => { if (fstore.get().pmTarget === m.otherId) fstore.set({ pm: m.messages || [] }); });
+  // [friend-invite] an online friend's room invite pops a dialog on ANY screen; the result of our own invite toasts.
+  net.on('friend.invite', (m) => showInviteDialog(m));
+  net.on('friend.invite.result', (m) => toast(`${m.byName || '对方'} ${m.accept ? '接受了你的邀请' : '拒绝了你的邀请'}`));
+  if (!document.getElementById('sp-friends-badge-css')) {
+    const st = document.createElement('style'); st.id = 'sp-friends-badge-css';
+    st.textContent = '.friends-wrap{position:relative;display:inline-flex}.friends-badge{position:absolute;top:-.05rem;right:-.05rem;min-width:.16rem;height:.16rem;padding:0 .04rem;border-radius:.08rem;background:#f85149;color:#fff;font-size:.1rem;line-height:.16rem;text-align:center;font-weight:700;box-shadow:0 0 0 2px var(--bg-0,#0d1117);pointer-events:none;z-index:5}';
+    document.head.appendChild(st);
+  }
+  // [friend-invite] the picker is opened from the room screen too, so it lives in its own global root (not the lobby button).
+  if (!document.getElementById('sp-friend-invite-host')) {
+    const host = document.createElement('div'); host.id = 'sp-friend-invite-host'; document.body.appendChild(host);
+    render(html`<${InviteHost} />`, host);
+  }
   (async () => { try { const t = getToken(); if (t) { const me = await (await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${t}` } })).json(); if (me.account) fstore.set({ own: me.account.id }); } } catch {} refresh(); })();
 }
 
@@ -97,10 +111,72 @@ const FR_CSS = `
 .fr-tag{color:var(--mint-400,#59f4ca);font-size:.11rem;margin-left:.03rem}
 `;
 
+/** [friend-invite] open the online-friends invite picker from the room screen (room.js onInvite / 邀请好友). */
+export function openFriendInvite(roomCode) {
+  if (net.status === 'online') net.send('friend.list', {});
+  fstore.set({ invitePicker: true, inviteRoom: roomCode || null });
+}
+
+/** [friend-invite] the picker: online friends get a one-click 邀请; the key/link stay copyable as a fallback. */
+function InvitePickerModal({ onClose }) {
+  const s = useStore((x) => x, Object.is, fstore);
+  const online = s.friends.filter((f) => f.online);
+  const invite = (f) => { net.send('friend.invite', { toId: f.accountId }); toast(`已向 ${f.name || '账号' + f.accountId} 发送邀请`); };
+  const copy = async (what) => {
+    const code = s.inviteRoom; if (!code) return;
+    const { copyText, inviteLink } = await import('../screens/room.js');
+    const ok = await copyText(what === 'code' ? code : inviteLink(code));
+    toast(ok ? (what === 'code' ? `已复制同盟密钥 ${code}` : '已复制邀请链接') : '复制失败，请手动复制');
+  };
+  return html`<${Modal} open=${true} onClose=${onClose} title="邀请好友" micro="INVITE" width="4.2rem" class="fr-modal">
+    <style>${FR_CSS}</style>
+    <div class="fr-list">
+      ${!s.own ? html`<p class="fr-empty">游客不能邀请好友；注册后解锁。</p>` : html`
+        <div class="fr-sec">在线好友（${online.length}）</div>
+        ${!online.length ? html`<p class="fr-empty">暂无在线好友</p>` : online.map((f) => html`<div key=${f.accountId} class="fr-row"><i class="fr-dot on"></i><span class="fr-nm">${f.name || '账号' + f.accountId}<span class="fr-tag">${f.disc != null ? '#' + f.disc : ' (#' + f.accountId + ')'}</span></span><${Button} size="sm" onClick=${() => invite(f)}>邀请<//></div>`)}
+        <div class="fr-sec">或分享邀请</div>
+        <div class="fr-add"><${Button} size="sm" variant="ghost" onClick=${() => copy('code')}>复制密钥<//><${Button} size="sm" variant="ghost" onClick=${() => copy('link')}>复制链接<//></div>
+      `}
+    </div>
+  <//>`;
+}
+
+/** [friend-invite] global root so the picker shows on any screen (room / lobby / title). */
+function InviteHost() {
+  const picker = useStore((s) => s.invitePicker, Object.is, fstore);
+  return picker ? html`<${InvitePickerModal} onClose=${() => fstore.set({ invitePicker: false })} />` : null;
+}
+
+/** [friend-invite] a screen-independent accept/decline dialog for an incoming room invite (plain DOM, like the toast). */
+let inviteEl = null;
+function showInviteDialog(m) {
+  if (inviteEl) inviteEl.remove();
+  inviteEl = document.createElement('div'); inviteEl.className = 'sp-invite-mask';
+  const card = document.createElement('div'); card.className = 'sp-invite-card';
+  const txt = document.createElement('p'); txt.textContent = `${m.fromName || '有人'} 邀请你加入同盟 ${m.roomCode || ''}`;
+  const row = document.createElement('div'); row.className = 'sp-invite-row';
+  const yes = document.createElement('button'); yes.className = 'sp-invite-yes'; yes.textContent = '接受';
+  const no = document.createElement('button'); no.className = 'sp-invite-no'; no.textContent = '拒绝';
+  const done = () => { if (inviteEl) { inviteEl.remove(); inviteEl = null; } };
+  yes.onclick = async () => { done(); net.send('friend.invite.respond', { fromId: m.fromId, accept: true });
+    try { const { joinKnown } = await import('../screens/lobby.js'); await joinKnown('room.join', m.roomCode); } catch { toast('加入同盟失败'); } };
+  no.onclick = () => { done(); net.send('friend.invite.respond', { fromId: m.fromId, accept: false }); };
+  row.append(yes, no); card.append(txt, row); inviteEl.append(card); document.body.appendChild(inviteEl);
+  if (!document.getElementById('sp-invite-css')) {
+    const st = document.createElement('style'); st.id = 'sp-invite-css';
+    st.textContent = '.sp-invite-mask{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9600;display:flex;align-items:center;justify-content:center}.sp-invite-card{background:var(--bg-1,#141816);border:1px solid var(--mint-a35,rgba(78,216,175,.4));border-radius:.1rem;padding:.2rem .24rem;max-width:80vw;text-align:center}.sp-invite-card p{color:var(--text-hi,#e6edf3);font-size:.15rem;margin:0 0 .14rem}.sp-invite-row{display:flex;gap:.1rem;justify-content:center}.sp-invite-row button{padding:.06rem .18rem;border-radius:.06rem;font-size:.13rem;cursor:pointer;border:1px solid var(--line,#2f3a35)}.sp-invite-yes{background:var(--mint-500,#4ed8af);color:#0d1117;border:none!important;font-weight:700}.sp-invite-no{background:none;color:var(--text-dim,#8b949e)}';
+    document.head.appendChild(st);
+  }
+}
+
 /** The lobby top-bar friends trigger — same size/colour as the 设置 button (its twin), right of 玩法说明. */
 export function FriendsButton({ class: cls, size = 'sm', variant = 'ghost', square = false }) {
   const open = useStore((s) => s.open, Object.is, fstore);
-  return html`<${Button} variant=${variant} size=${size} square=${square} icon="users" class=${`friends-btn ${cls || ''}`}
-      onClick=${() => fstore.set({ open: true })} title="好友" aria-label="好友" data-testid="friends-btn">${square ? null : '好友'}<//>
+  const nreq = useStore((s) => s.requests.length, Object.is, fstore);
+  return html`<span class="friends-wrap">
+      <${Button} variant=${variant} size=${size} square=${square} icon="users" class=${`friends-btn ${cls || ''}`}
+        onClick=${() => fstore.set({ open: true })} title="好友" aria-label="好友" data-testid="friends-btn">${square ? null : '好友'}<//>
+      ${nreq > 0 ? html`<span class="friends-badge" aria-label=${nreq + ' 条好友申请'}>${nreq > 99 ? '99+' : nreq}</span>` : null}
+    </span>
     ${open ? html`<${FriendsModal} onClose=${() => fstore.set({ open: false, pmTarget: null, pm: [] })} />` : null}`;
 }

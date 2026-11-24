@@ -37,6 +37,12 @@ export function handleChat(conn, msg) {
     case 'friend.list':
       reply({ t: 'friend.list', friends: chat.friendsList(session), requests: chat.pendingRequests(session) });
       break;
+    case 'friend.invite': // [friend-invite]
+      reply({ t: 'friend.result', action: 'invite', ...chat.inviteFriend(session, msg.toId) });
+      break;
+    case 'friend.invite.respond': // [friend-invite]
+      reply({ t: 'friend.result', action: 'inviteRespond', ...chat.inviteRespond(session, msg.fromId, msg.accept === true) });
+      break;
     case 'pm.send': {
       const r = chat.sendPM(session, msg.toId, msg.body);
       if (!r.ok) reply({ t: 'chat.error', error: r.error, scope: 'pm' });

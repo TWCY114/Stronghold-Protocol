@@ -119,6 +119,26 @@ export function createChat({ dbPath, registry, log, now = Date.now }) {
       return store.pendingRequests(session.accountId).map((r) => { const t = tagOf(r.from_id); return { fromId: r.from_id, fromName: t ? t.name : nameOf(r.from_id), fromTag: t ? t.tag : null, at: r.created_at }; });
     },
 
+    /** [friend-invite] invite an online friend into the sender's current co-op room; the target gets a popup. */
+    inviteFriend(session, toId) {
+      if (!session.accountId) return { ok: false, error: 'need_account' };
+      toId = Number(toId);
+      if (!toId || toId === session.accountId) return { ok: false, error: 'bad_target' };
+      if (!store.areFriends(session.accountId, toId)) return { ok: false, error: 'not_friends' };
+      const code = session.roomCode;
+      if (!code) return { ok: false, error: 'no_room' };
+      const target = onlineOf(toId);
+      if (!target) return { ok: false, error: 'not_online' };
+      send(target, { t: 'friend.invite', fromId: session.accountId, fromName: session.name, roomCode: code, at: now() });
+      return { ok: true };
+    },
+    /** [friend-invite] the invited player's accept/decline, relayed to the inviter as a toast. */
+    inviteRespond(session, fromId, accept) {
+      if (!session.accountId) return { ok: false, error: 'need_account' };
+      const other = onlineOf(Number(fromId));
+      if (other) send(other, { t: 'friend.invite.result', byId: session.accountId, byName: session.name, accept: !!accept, at: now() });
+      return { ok: true, accepted: !!accept };
+    },
     sendPM(session, toId, rawBody) {
       if (!session.accountId) return { ok: false, error: 'need_account' };
       toId = Number(toId);

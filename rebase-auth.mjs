@@ -197,6 +197,28 @@ hook('public/js/ui/gameLogic/settings.js',
   `bondTimers: false, combatMetrics: false, prepDeployFold: true,`,
   `bondTimers: false, combatMetrics: true, prepDeployFold: true,`, { mode: 'replace' });
 
+// ---- public/js/screens/room.js: [friend-invite] 邀请 opens the online-friends picker --------------------------------
+hook('public/js/screens/room.js',
+  `import { difficultyInfo, modeInfo, ProtocolSelect } from './lobby.js';\n`,
+  `import { openFriendInvite } from '../chat/friends.js'; // [friend-invite]\n`);
+hook('public/js/screens/room.js',
+  `          ? html\`<button type="button" class="rseat__invite" onClick=\${onInvite} title=\${t('复制同盟密钥以邀请队友')}>\n              <span class="rseat__plus" aria-hidden="true"></span><b>\${t('邀请')}</b><small>\${t('复制同盟密钥以邀请队友')}</small></button>\``,
+  `          ? html\`<button type="button" class="rseat__invite" onClick=\${onInvite} title=\${t('邀请在线好友或复制密钥')}>\n              <span class="rseat__plus" aria-hidden="true"></span><b>\${t('邀请')}</b><small>\${t('邀请在线好友或复制密钥')}</small></button>\``, { mode: 'replace' });
+hook('public/js/screens/room.js',
+  `onInvite=\${() => copy('code')}`,
+  `onInvite=\${() => openFriendInvite(room.code)}`, { mode: 'replace' });
+hook('public/js/screens/room.js',
+  `          <button type="button" class="rs-key__copy" onClick=\${() => copy('code')} title=\${t('复制密钥')}>\${t('复制')}</button>\n`,
+  `          <button type="button" class="rs-key__copy" onClick=\${() => openFriendInvite(room.code)} title=\${t('邀请在线好友')}>\${t('邀请好友')}</button>\n`);
+
+// ---- public/i18n/*.json: [friend-invite] the three new room strings --------------------------------------------------
+for (const [pack, copyLine, add] of [
+  ['en', `  "复制同盟密钥以邀请队友": "Copy the Alliance Key to invite teammates",\n`, `  "邀请在线好友或复制密钥": "Invite online friends or copy the key",\n  "邀请在线好友": "Invite online friends",\n  "邀请好友": "Invite friends",\n`],
+  ['ja', `  "复制同盟密钥以邀请队友": "同盟キーをコピーして仲間を招待",\n`, `  "邀请在线好友或复制密钥": "オンラインのフレンドを招待 / キーをコピー",\n  "邀请在线好友": "オンラインのフレンドを招待",\n  "邀请好友": "フレンドを招待",\n`],
+  ['ko', `  "复制同盟密钥以邀请队友": "동맹 키를 복사해 동료를 초대",\n`, `  "邀请在线好友或复制密钥": "온라인 친구 초대 또는 키 복사",\n  "邀请在线好友": "온라인 친구 초대",\n  "邀请好友": "친구 초대",\n`],
+  ['zh-TW', `  "复制同盟密钥以邀请队友": "複製同盟密鑰以邀請隊友",\n`, `  "邀请在线好友或复制密钥": "邀請在線好友或複製密鑰",\n  "邀请在线好友": "邀請在線好友",\n  "邀请好友": "邀請好友",\n`],
+]) hook(`public/i18n/${pack}.json`, copyLine, add);
+
 console.log(`\n钩子: 新打 ${applied}, 已存在跳过 ${skipped}, 失败 ${failed}`);
 if (failed) { console.error('有锚点失败：官方重构了钩子宿主，请人工适配后重跑。'); process.exit(1); }
 
@@ -208,7 +230,7 @@ const check = [...touched,
   'server/chat/store.js', 'server/chat/chat.js', 'server/chat/index.js', 'server/chat/ws.js', 'public/js/chat/panel.js',
   'public/js/chat/friends.js', 'public/js/chat/settings.js', 'public/js/chat/pref.js', 'public/js/auth/logout.js', 'public/js/chat/profile.js',
   'server/auth/mailer.js', 'public/js/auth/fingerprint.js', 'public/js/auth/convert.js', 'public/login/login.js',
-  'server/admin/matchEdit.js', 'server/match/Match.js', 'server/match/host/proxy.js',
+  'server/admin/matchEdit.js', 'server/match/Match.js', 'server/match/host/proxy.js', 'public/js/screens/room.js',
   '_test-creds.mjs', 'test-admin.mjs', 'test-admin-api.mjs', 'test-admin-e2e.mjs', 'test-admin-match.mjs',
   'shot-admin.mjs', 'test-auth.mjs', 'test-chat.mjs', 'test-token-auth.mjs', 'test-account-plus.mjs'];
 let bad = 0;
