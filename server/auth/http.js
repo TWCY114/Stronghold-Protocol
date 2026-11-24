@@ -173,6 +173,7 @@ async function handle(req, res, parts) {
     if (!NAME_RE.test(name)) { sendJson(req, res, 400, { ok: false, error: 'bad_name' }); return true; }
     const profile = auth.store.setDisplayName(v.account.id, name);
     applyRename(v.account.id, name);   // [name-sync] push the new play name to the live session + room broadcast
+    getChat()?.rename?.(v.account.id, name);   // [name-sync] rewrite stored chat sender names + relabel open panels (works offline too)
     sendJson(req, res, 200, { ok: true, profile: { ...profile, online: true } });
     return true;
   }

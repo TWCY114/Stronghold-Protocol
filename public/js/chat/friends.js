@@ -39,6 +39,11 @@ export function installFriends() {
     else if (m.fromId !== fstore.get().own) toast(`新私聊：${m.fromName || '账号' + m.fromId}`);
   });
   net.on('pm.history', (m) => { if (fstore.get().pmTarget === m.otherId) fstore.set({ pm: m.messages || [] }); });
+  // [name-sync] a rename relabels the friend list and the open private-chat header immediately.
+  net.on('chat.rename', (m) => fstore.set((s) => ({
+    friends: (s.friends || []).map((f) => (f.accountId === m.accountId ? { ...f, name: m.name } : f)),
+    pmName: s.pmTarget === m.accountId ? m.name : s.pmName,
+  })));
   // [friend-invite] an online friend's room invite pops a dialog on ANY screen; the result of our own invite toasts.
   net.on('friend.invite', (m) => showInviteDialog(m));
   net.on('friend.invite.result', (m) => toast(`${m.byName || '对方'} ${m.accept ? '接受了你的邀请' : '拒绝了你的邀请'}`));

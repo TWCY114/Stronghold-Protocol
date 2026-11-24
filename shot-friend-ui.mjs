@@ -67,6 +67,22 @@ const toastTxt = await page.evaluate(() => { const t = document.querySelector('.
 ok(toastTxt === '错误：你与对方还不是好友', '点击灰色私聊弹出错误', JSON.stringify(toastTxt));
 await page.screenshot({ path: SHOT + '/shot-friend-gate.png' });
 
+console.log('[chat-rename: 改名后聊天频道名字跟着改]');
+await page.keyboard.press('Escape'); await sleep(300);
+await page.keyboard.press('Escape'); await sleep(300);
+await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })));
+await sleep(400);
+await page.type('.sp-chat-input', '改名前的聊天');
+await page.keyboard.press('Enter');
+await sleep(500);
+const before = await page.evaluate(() => { const w = [...document.querySelectorAll('.sp-chat-line .who')].pop(); return w ? w.textContent : null; });
+await page.evaluate(async (t) => { await fetch('/api/player/rename', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify({ name: '聊天新名' }) }); }, admin.token);
+await sleep(700);
+const after = await page.evaluate(() => { const w = [...document.querySelectorAll('.sp-chat-line .who')].pop(); return w ? w.textContent : null; });
+ok(!!before && before !== '聊天新名', '改名前聊天显示旧名', JSON.stringify(before));
+ok(after === '聊天新名', '改名后聊天频道名字即时更新', JSON.stringify(after));
+await page.screenshot({ path: SHOT + '/shot-chat-rename.png' });
+
 await browser.close();
 console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
 process.exit(fail ? 1 : 0);

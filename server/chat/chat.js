@@ -165,6 +165,12 @@ export function createChat({ dbPath, registry, log, now = Date.now }) {
       for (const m of mail) send(session, { t: 'pm.message', id: m.id, fromId: m.from_id, fromName: nameOf(m.from_id), toId: m.to_id, body: m.body, at: m.created_at, offline: true });
       if (mail.length) store.markDelivered(session.accountId);
     },
+    /** [name-sync] profile rename: rewrite stored chat sender names and tell every open chat panel to relabel live. */
+    rename(accountId, name) {
+      if (!accountId || !name) return;
+      store.renameSender(accountId, name);
+      for (const s of registry.byPlayerId.values()) if (s.connected) send(s, { t: 'chat.rename', accountId, name, at: now() });
+    },
     close() { store.close(); },
   };
 }

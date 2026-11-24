@@ -64,6 +64,8 @@ export function createChatStore({ dbPath, log }) {
     insRoom: db.prepare('INSERT INTO room_chat(room_code,account_id,name,body,created_at) VALUES(?,?,?,?,?)'),
     roomRecent: db.prepare('SELECT * FROM room_chat WHERE room_code=? ORDER BY id DESC LIMIT ?'),
     trimRoom: db.prepare('DELETE FROM room_chat WHERE room_code=? AND id NOT IN (SELECT id FROM room_chat WHERE room_code=? ORDER BY id DESC LIMIT ?)'),
+    renameLobby: db.prepare('UPDATE lobby_chat SET name=? WHERE account_id=?'),
+    renameRoom: db.prepare('UPDATE room_chat SET name=? WHERE account_id=?'),
   };
 
   const pair = (a, b) => (a < b ? [a, b] : [b, a]);
@@ -100,6 +102,11 @@ export function createChatStore({ dbPath, log }) {
       q.trimRoom.run(roomCode, roomCode, LOBBY_KEEP);
     },
     roomRecent(roomCode, limit = 50) { return q.roomRecent.all(roomCode, limit).reverse(); },
+    /** [name-sync] a profile rename rewrites the sender name on every stored lobby / room line so history agrees too. */
+    renameSender(accountId, name) {
+      q.renameLobby.run(name, accountId);
+      q.renameRoom.run(name, accountId);
+    },
     /** [player-id] erase an account's social footprint on self-deletion: friendships, requests, PMs and chat lines. */
     purgeAccount(id) {
       db.prepare('DELETE FROM friends WHERE a_id=? OR b_id=?').run(id, id);

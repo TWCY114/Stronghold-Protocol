@@ -244,6 +244,12 @@ export function installChat({ net }) {
     if (ch === state.channel) rebuildLog();
   });
   net.on('chat.error', (m) => toast(ERR[m.error] || '聊天错误'));
+  net.on('chat.rename', (m) => {
+    // [name-sync] a profile rename relabels this account's cached lines in BOTH channels (history dedup keys include
+    // the name, so updating the cache also prevents duplicate rows on the next chat.history merge), then repaints.
+    for (const ch of ['world', 'room']) for (const x of state.msg[ch] || []) if ((x.accountId ?? x.account_id) === m.accountId) x.name = m.name;
+    rebuildLog();
+  });
 
   (async () => {
     try { const t = getToken(); if (t) { const me = await (await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${t}` } })).json(); if (me.account) state.own = me.account.id; } } catch {}

@@ -55,6 +55,18 @@ await a.next('friend.accepted', 5000);
 const pf1 = await get('/api/player/profile?id=' + bId, A.token);
 ok(pf1.profile.isFriend === true, '互为好友后 isFriend=true');
 
+console.log('[改名 → 聊天频道名字同步]');
+a.send('chat.send', { body: '改名前的消息', channel: 'world' });
+await a.next('chat.lobby', 5000);
+await post('/api/player/rename', { name: '公开甲聊' }, A.token);
+const ra = await a.next('chat.rename', 5000);
+const rb = await b.next('chat.rename', 5000);
+ok(ra.accountId === aId && ra.name === '公开甲聊', '自己收到 chat.rename 广播');
+ok(rb.accountId === aId && rb.name === '公开甲聊', '他人收到 chat.rename 广播');
+a.send('chat.history', { channel: 'world' });
+const h = await a.next('chat.history', 5000);
+ok((h.messages || []).some((x) => x.account_id === aId && x.name === '公开甲聊'), '世界历史消息名字已改写为新名');
+
 console.log('[房间内改名 → 广播新名字]');
 a.send('room.create', { mode: 'coop' });
 const rs = await a.next('room.state', 8000);
