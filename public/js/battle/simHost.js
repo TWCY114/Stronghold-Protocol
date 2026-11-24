@@ -1,4 +1,4 @@
-// C4 simulation hosts (DESIGN ยง32.11). The clock belongs to runner.js. Only the vanilla host has a Battle on the page.
+// C4 simulation hosts (DESIGN §32.11). The clock belongs to runner.js. Only the vanilla host has a Battle on the page.
 import { loadBrowserSim, checkOperatorTraitRuntime } from './simLoader.js';
 import { unitStatsEntry } from '../../../shared/protocol.js';
 
@@ -148,7 +148,7 @@ export class WorkerSimHost {
     return this.statsCache.get(id) || null;
   }
   /**
-   * ไฝๆ็ป่ฎก of the battle this worker is simulating (the tracker lives worker-side, where the real Battle
+   * 作战统计 of the battle this worker is simulating (the tracker lives worker-side, where the real Battle
    * is): a cached pull, one request in flight, so the panel's own repaint rate bounds the traffic. A new
    * battle's `start` clears the cache, and `statsGeneration` drops a reply that came from the previous one.
    */
