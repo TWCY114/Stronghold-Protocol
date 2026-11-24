@@ -63,4 +63,18 @@ body { margin: 0; font-family: "Segoe UI","PingFang SC","Microsoft YaHei",system
 .adm-msg.err { color: var(--err); border-color: rgba(255,123,114,.4); }
 .adm-msg.ok { color: var(--ok); border-color: rgba(126,231,135,.4); }
 .is-hidden { display: none !important; }
+/* live match control modal */
+.adm-modal { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.6); padding: 18px; }
+.adm-modal__box { width: min(560px,100%); max-height: 86vh; overflow-y: auto; background: var(--card); border: 1px solid var(--amber-dim); border-radius: 14px; box-shadow: 0 18px 50px rgba(0,0,0,.5); }
+.adm-modal__head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.adm-modal__head b { font-size: 15px; color: var(--amber); }
+.adm-modal__body { padding: 14px 16px; }
+.adm-mrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; font-size: 13px; }
+.adm-mrow b { color: var(--amber); }
+.adm-mrow label { color: var(--muted); }
+.adm-mrow input { width: 90px; padding: 6px 9px; font-size: 13px; color: var(--text); background: #0d1117; border: 1px solid var(--line); border-radius: 8px; outline: none; }
+.adm-mrow input:focus { border-color: var(--amber-dim); }
+.adm-funds { display: flex; gap: 6px; align-items: center; }
+.adm-funds input { width: 110px; padding: 5px 8px; font-size: 13px; color: var(--text); background: #0d1117; border: 1px solid var(--line); border-radius: 7px; outline: none; }
+.adm-funds input:focus { border-color: var(--amber-dim); }
 @media (max-width: 720px) { .adm-cards { grid-template-columns: repeat(3,1fr); } }

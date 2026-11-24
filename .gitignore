@@ -57,6 +57,8 @@ logs/
 scripts/service.env.cmd
 .env
 .env.*
+# self-host runtime env (PORT + SMTP credentials) loaded by `npm start` via --env-file-if-exists; never committed
+spplus.env
 
 # --- OS / editor clutter ---------------------------------------------------------------------------
 .DS_Store

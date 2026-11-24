@@ -152,6 +152,8 @@ export class MatchProxy {
   removeSpectator(playerId) { this._notify('removeSpectator', [playerId]); }
   /** The match's diagnostics in the worker (tests). @returns {Promise<any>} */
   diag() { return this.disposed ? Promise.resolve(null) : this._request('diag', [], true); }
+  /** [auth-fork] admin live-match editing (state / funds / round), forwarded to the worker's Match.adminEdit. */
+  adminEdit(playerId, cmd, args) { return this._request('adminEdit', [playerId, cmd, args || {}]); }
 
   /**
    * The lobby is done with the match. The worker still answers what was asked before (its port keeps the order: those

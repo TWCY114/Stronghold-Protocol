@@ -154,6 +154,7 @@ function ProfilePage({ onClose }) {
         <div class="ak-tabs">
           <button class=${'ak-tab' + (s.tab === 'friends' ? ' on' : '')} onClick=${() => setTab('friends')}>好友（${s.friends.length}）</button>
           <button class=${'ak-tab' + (s.tab === 'search' ? ' on' : '')} onClick=${() => setTab('search')}>搜索玩家</button>
+          ${me?.role === 'admin' ? html`<a class="ak-adminbtn" href="/admin" target="_blank" rel="noopener" data-testid="profile-admin" title="进入管理后台">⚙ 管理后台</a>` : null}
         </div>
         ${s.tab === 'friends' ? friendsTab : searchTab}
       </section>
@@ -210,6 +211,8 @@ const AK_CSS = `
 .ak-tabs{display:flex;gap:.06rem;border-bottom:1px solid var(--line,#2f3a35);margin-bottom:.1rem}
 .ak-tab{background:none;border:none;border-bottom:.02rem solid transparent;padding:.06rem .1rem;font-size:.135rem;color:var(--text-dim,#8b949e);cursor:pointer}
 .ak-tab.on{color:var(--mint-400,#59f4ca);border-bottom-color:var(--mint-500,#4ed8af)}
+.ak-adminbtn{margin-left:auto;align-self:center;display:inline-flex;align-items:center;gap:.03rem;padding:.045rem .1rem;font-size:.12rem;font-weight:600;color:#04140f;background:var(--mint-500,#4ed8af);border-radius:.06rem;text-decoration:none;letter-spacing:.02em;transition:.15s}
+.ak-adminbtn:hover{background:var(--mint-400,#59f4ca);box-shadow:0 0 .08rem var(--mint-a35,rgba(78,216,175,.4))}
 .ak-main{display:flex;flex-direction:column;gap:.07rem}
 .ak-search{display:flex;align-items:center;gap:.06rem}
 .ak-search input{flex:1;padding:.07rem .1rem;font-size:.13rem;color:var(--text-hi,#e6edf3);background:var(--bg-1,#141816);border:1px solid var(--line,#2f3a35);border-radius:.07rem;outline:none}

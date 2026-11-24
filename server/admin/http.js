@@ -9,6 +9,7 @@ import { sendJson, sendError } from '../http/common.js';
 import { getAuth } from '../auth/index.js';
 import { hashPassword } from '../auth/auth.js';
 import { getAdmin } from './index.js';
+import { matchState, editFunds, editRound } from './matchEdit.js';   // [auth-fork] live-match admin editing
 
 const MAX_BODY = 8192;
 const USERNAME_RE = /^[\w一-龥]{2,16}$/u;
@@ -110,6 +111,12 @@ async function handle(req, res, parts) {
       sendJson(req, res, 200, { ok: true, accounts: store.listAccounts() });
       return true;
     }
+    if (path === '/api/admin/match-state') {   // [auth-fork] round/phase + per-seat funds/LP of a running match
+      const code = String(new URLSearchParams(parts.query || '').get('code') || '');
+      const room = admin.lobby.getRoom(code);
+      sendJson(req, res, 200, room ? await matchState(room) : { ok: false, error: 'no_room' });
+      return true;
+    }
     sendError(req, res, 404, 'Not found');
     return true;
   }
@@ -120,6 +127,16 @@ async function handle(req, res, parts) {
 
   if (path === '/api/admin/kick') { sendJson(req, res, 200, adminKick(admin, String(body.playerId || ''))); return true; }
   if (path === '/api/admin/end-room') { sendJson(req, res, 200, adminEndRoom(admin, String(body.code || ''))); return true; }
+
+  if (path === '/api/admin/match-edit') {   // [auth-fork] set a player's funds or jump the room's round
+    const room = admin.lobby.getRoom(String(body.code || ''));
+    if (!room) { sendJson(req, res, 200, { ok: false, error: 'no_room' }); return true; }
+    const cmd = String(body.cmd || '');
+    if (cmd === 'funds') { sendJson(req, res, 200, await editFunds(room, body.playerId, body.amount)); return true; }
+    if (cmd === 'round') { sendJson(req, res, 200, await editRound(room, body.round)); return true; }
+    sendJson(req, res, 400, { ok: false, error: 'bad_cmd' });
+    return true;
+  }
 
   if (path === '/api/admin/accounts') {
     const username = String(body.username ?? '').trim();

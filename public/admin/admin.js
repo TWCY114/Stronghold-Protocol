@@ -137,7 +137,7 @@ async function loadRooms() {
     <td>${esc(r.mode || '—')}</td>
     <td>${r.seats.map((s) => esc(s.name) + (s.isBot ? '🤖' : '')).join('、') || '—'}</td>
     <td>${r.spectators}</td>
-    <td><div class="adm-actions"><button class="adm-btn danger mini" data-end="${esc(r.code)}">结束对局</button></div></td>
+    <td><div class="adm-actions">${r.match ? `<button class="adm-btn mini" data-match="${esc(r.code)}">对局控制</button>` : ''}<button class="adm-btn danger mini" data-end="${esc(r.code)}">结束对局</button></div></td>
   </tr>`).join('');
   $('#rooms-table').innerHTML = `<thead><tr><th>房号</th><th>状态</th><th>模式</th><th>席位</th><th>观战</th><th>操作</th></tr></thead><tbody>${rows || '<tr><td colspan="6" style="color:#8b949e">暂无房间</td></tr>'}</tbody>`;
 }
@@ -160,6 +160,63 @@ async function loadAccounts() {
   $('#accounts-table').innerHTML = `<thead><tr><th>ID</th><th>用户名</th><th>角色</th><th>状态</th><th>注册</th><th>操作</th></tr></thead><tbody>${rows || '<tr><td colspan="6" style="color:#8b949e">暂无账号</td></tr>'}</tbody>`;
 }
 
+// ---- live match control ---------------------------------------------------------------------------------------------
+let matchPanel = null;
+function closeMatchPanel() { if (matchPanel) { matchPanel.remove(); matchPanel = null; } }
+async function openMatchPanel(code) {
+  closeMatchPanel();
+  const { j } = await api('/api/admin/match-state?code=' + encodeURIComponent(code));
+  if (!j?.ok) { toast('无法读取对局：' + (j?.error === 'hosted_match' ? '插件对局运行在独立进程，暂不支持' : (j?.error || '')), 'err'); return; }
+  matchPanel = document.createElement('div');
+  matchPanel.className = 'adm-modal';
+  matchPanel.innerHTML = `<div class="adm-modal__box">
+    <div class="adm-modal__head"><b>对局控制 · ${esc(code)}</b><button class="adm-btn ghost mini" data-mclose>关闭</button></div>
+    <div class="adm-modal__body" id="mbody"></div>
+  </div>`;
+  document.body.appendChild(matchPanel);
+  matchPanel.addEventListener('click', (e) => { if (e.target === matchPanel || e.target.closest('[data-mclose]')) closeMatchPanel(); });
+  renderMatchPanel(code, j);
+}
+function renderMatchPanel(code, j) {
+  const body = $('#mbody', matchPanel);
+  if (!body) return;
+  const rows = j.players.map((p) => `<tr>
+    <td>${esc(p.name || ('座位' + p.seat))}${p.spectator ? ' <span class="adm-tag">观战</span>' : ''}${p.alive ? '' : ' <span class="adm-tag off">阵亡</span>'}</td>
+    <td>${p.lp}</td>
+    <td><div class="adm-funds"><input type="number" min="0" max="1000000000" value="${p.funds}" data-finput="${esc(p.playerId)}"><button class="adm-btn mini" data-setfunds="${esc(p.playerId)}">设为</button></div></td>
+  </tr>`).join('');
+  body.innerHTML = `
+    <div class="adm-mrow"><span>当前回合 <b>R${j.round}</b> · 相位 <b>${esc(j.phase)}</b>${j.bossRound ? ` · Boss R${j.bossRound}` : ''}</span></div>
+    <div class="adm-mrow"><label>跳到回合</label><input type="number" min="1" max="${j.lastRound || 30}" value="${j.round}" id="mround"><button class="adm-btn mini" data-setround>跳转</button><span class="adm-sub">跳转不结算中间回合；LP≤0 者先被淘汰</span></div>
+    <div class="adm-table-wrap"><table class="adm-table"><thead><tr><th>玩家</th><th>LP</th><th>金钱（绝对值）</th></tr></thead><tbody>${rows || '<tr><td colspan="3" style="color:#8b949e">无席位</td></tr>'}</tbody></table></div>`;
+  body.onclick = async (e) => {
+    const sf = e.target.closest('[data-setfunds]');
+    if (sf) {
+      const pid = sf.dataset.setfunds;
+      const inp = body.querySelector(`[data-finput="${pid}"]`);
+      const amount = Number(inp?.value);
+      const { j: r } = await api('/api/admin/match-edit', { method: 'POST', body: { code, cmd: 'funds', playerId: pid, amount } });
+      toast(r?.ok ? `金钱已设为 ${r.funds}` : ('失败：' + (r?.error || '')), r?.ok ? 'ok' : 'err');
+      if (r?.ok) refreshMatchPanel(code);
+      return;
+    }
+    const sr = e.target.closest('[data-setround]');
+    if (sr) {
+      const round = Number($('#mround', body)?.value);
+      if (!confirm(`把房间 ${code} 跳到回合 ${round}？中间回合不结算。`)) return;
+      const { j: r } = await api('/api/admin/match-edit', { method: 'POST', body: { code, cmd: 'round', round } });
+      toast(r?.ok ? `已跳到 R${r.round}` : ('失败：' + (r?.error || '') + (r?.detail ? ' ' + r.detail : '')), r?.ok ? 'ok' : 'err');
+      if (r?.ok) refreshMatchPanel(code);
+      return;
+    }
+  };
+}
+async function refreshMatchPanel(code) {
+  if (!matchPanel) return;
+  const { j } = await api('/api/admin/match-state?code=' + encodeURIComponent(code));
+  if (j?.ok) renderMatchPanel(code, j); else closeMatchPanel();
+}
+
 // ---- actions --------------------------------------------------------------------------------------------------------
 document.addEventListener('click', async (e) => {
   const kick = e.target.closest('[data-kick]');
@@ -176,6 +233,8 @@ document.addEventListener('click', async (e) => {
     toast(j?.ok ? '对局已结束' : ('失败：' + (j?.error || '')), j?.ok ? 'ok' : 'err');
     loadRooms(); return;
   }
+  const match = e.target.closest('[data-match]');
+  if (match) { openMatchPanel(match.dataset.match); return; }
   const acc = e.target.closest('[data-acc]');
   if (acc) {
     const id = Number(acc.dataset.acc), act = acc.dataset.act;

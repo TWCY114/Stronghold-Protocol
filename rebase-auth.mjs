@@ -176,6 +176,16 @@ hook('public/js/ui/settings.js',
   `      <\${UiPluginSection} />\n`,
   `      <\${ChatPluginSection} />\n`);
 
+// ---- server/match/Match.js: admin live-match editing on every Match (main process + match-host children) -------------
+hook('server/match/Match.js',
+  `    Object.defineProperty(Match.prototype, key, Object.getOwnPropertyDescriptor(part.prototype, key));\n  }\n}\n`,
+  `\n// [auth-fork] admin live-match editing: adminEdit on every Match (this process and match-host children). See server/admin/matchEdit.js.\nimport { installMatchAdmin } from '../admin/matchEdit.js';\ninstallMatchAdmin(Match);\n`);
+
+// ---- server/match/host/proxy.js: forward adminEdit to a hosted match over IPC ----------------------------------------
+hook('server/match/host/proxy.js',
+  `  diag() { return this.disposed ? Promise.resolve(null) : this._request('diag', [], true); }\n`,
+  `  /** [auth-fork] admin live-match editing (state / funds / round), forwarded to the worker's Match.adminEdit. */\n  adminEdit(playerId, cmd, args) { return this._request('adminEdit', [playerId, cmd, args || {}]); }\n`);
+
 console.log(`\n钩子: 新打 ${applied}, 已存在跳过 ${skipped}, 失败 ${failed}`);
 if (failed) { console.error('有锚点失败：官方重构了钩子宿主，请人工适配后重跑。'); process.exit(1); }
 
@@ -186,7 +196,8 @@ const check = [...touched,
   'server/admin/index.js', 'server/admin/http.js',
   'server/chat/store.js', 'server/chat/chat.js', 'server/chat/index.js', 'server/chat/ws.js', 'public/js/chat/panel.js',
   'public/js/chat/friends.js', 'public/js/chat/settings.js', 'public/js/chat/pref.js', 'public/js/auth/logout.js', 'public/js/chat/profile.js',
-  'server/auth/mailer.js', 'public/js/auth/fingerprint.js', 'public/js/auth/convert.js', 'public/login/login.js'];
+  'server/auth/mailer.js', 'public/js/auth/fingerprint.js', 'public/js/auth/convert.js', 'public/login/login.js',
+  'server/admin/matchEdit.js', 'server/match/Match.js', 'server/match/host/proxy.js'];
 let bad = 0;
 for (const rel of check) {
   const r = spawnSync(process.execPath, ['--check', join(ROOT, rel)], { encoding: 'utf8' });

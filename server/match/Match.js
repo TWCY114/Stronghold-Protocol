@@ -568,3 +568,7 @@ for (const part of [MatchPlatform, MatchInfra, MatchMessaging, MatchViews, Match
     Object.defineProperty(Match.prototype, key, Object.getOwnPropertyDescriptor(part.prototype, key));
   }
 }
+
+// [auth-fork] admin live-match editing: adminEdit on every Match (this process and match-host children). See server/admin/matchEdit.js.
+import { installMatchAdmin } from '../admin/matchEdit.js';
+installMatchAdmin(Match);
