@@ -11,6 +11,7 @@ import { Network, SessionRegistry, NET_DEFAULTS } from '../net.js';
 import { Lobby } from '../lobby.js';
 import { splitUrl } from './common.js';
 import { netOptionsFrom, lobbyOptionsFrom } from './config.js';
+import { gateUpgrade } from '../auth/ws.js'; // [auth-fork]
 
 /** Inbound WebSocket frame limit (DESIGN §8). */
 export const WS_MAX_PAYLOAD = 64 * 1024;
@@ -149,6 +150,9 @@ export function attachWebSocket(server, { network, log, traffic = null }) {
     const refused = network.admission(req);
     if (refused === 'per-address') { reject(429, 'Too Many Requests'); return; }
     if (refused) { reject(503, 'Service Unavailable'); return; }
+    const gate = gateUpgrade(req, parts); // [auth-fork]
+    if (!gate.ok) { reject(gate.code === 'no-token' ? 401 : 403, gate.code === 'no-token' ? 'Unauthorized' : 'Forbidden'); return; }
+    req.spAccount = gate.principal;
     if (narrowDeflateOffer(req.headers['sec-websocket-extensions'])) delete req.headers['sec-websocket-extensions'];
     try {
       wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));

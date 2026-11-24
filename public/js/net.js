@@ -105,7 +105,9 @@ export function backoffDelay(attempt, rand = Math.random) {
  */
 export function defaultWsUrl(loc = globalThis.location) {
   if (!loc || !loc.host) return 'ws://localhost:3000/ws';
-  return `${loc.protocol === 'https:' ? 'wss' : 'ws'}://${loc.host}/ws`;
+  const base = `${loc.protocol === 'https:' ? 'wss' : 'ws'}://${loc.host}/ws`; // [auth-fork]
+  const tok = globalThis.localStorage?.getItem?.('sp_token');
+  return tok ? `${base}?token=${encodeURIComponent(tok)}` : base;
 }
 
 const WS_OPEN = 1;
@@ -497,7 +499,7 @@ export class Net {
   send(t, fields = {}) {
     if (t === 'hello') return false;
     const msg = { ...(fields && typeof fields === 'object' ? fields : {}), t };
-    const bad = validateC2S(msg);
+    const bad = (t.startsWith('chat.') || t.startsWith('friend.') || t.startsWith('pm.')) ? null : validateC2S(msg); // [auth-fork]
     if (bad) { console.warn(`[net] refusing invalid ${t}: ${bad}`); return false; }
     if (this.status !== 'online') return false;
     return this._sendRaw(msg);

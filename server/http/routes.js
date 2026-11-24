@@ -22,6 +22,8 @@ import { PROTOCOL_VERSION, APP_VERSION } from '../../shared/constants.js';
 import { buildTag } from './buildTag.js';
 import { setSecurityHeaders, sendError, sendJson, splitUrl } from './common.js';
 import { clientAddress, isLocalIp } from '../net.js';
+import { adminHttp } from '../admin/http.js'; // [auth-fork]
+import { authHttp } from '../auth/http.js'; // [auth-fork]
 
 const MAX_URL_LENGTH = 4096;
 
@@ -98,6 +100,8 @@ export function createRequestHandler({ serveStatic, health, log, trustProxy = 'a
     if (!parts) { sendError(req, res, 400, '请求地址无效 · Bad request'); return; }
     if (trustedRuntime && parts.rawPath.startsWith('/x/') && await trustedRuntime.route(req,res,parts.rawPath)) return;
     if (studio && studio.handles(parts.rawPath)) { await studio.handle(req, res, parts.rawPath, parts.query); return; }
+    if (adminHttp.handles(parts.rawPath) && await adminHttp.handle(req, res, parts)) return; // [auth-fork]
+    if (authHttp.handles(parts.rawPath) && await authHttp.handle(req, res, parts)) return; // [auth-fork]
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       res.setHeader('Allow', 'GET, HEAD');
       sendError(req, res, 405, '不支持的请求方法 · Method not allowed');

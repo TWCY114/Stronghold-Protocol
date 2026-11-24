@@ -43,6 +43,7 @@ import { copyText } from './clipboard.js';
 import { catalog, loadCatalog, cosmeticPlugins, installedCount, isPersonalCosmetic, personal, personalApplied, personalSet, pluginName, setPersonalPlugin } from '../content.js';
 import { resolveThemeVars, themeVarsOf } from '../../../shared/plugins/theme.js';
 import { setUiPlugin, uiPluginEntries, uiPlugins } from './uiPlugins.js';
+import { ChatPluginSection } from '../chat/settings.js'; // [auth-fork]
 import { UI_LIMITS } from '../../../shared/plugins/ui.js';
 import { toast, describeError } from './toasts.js';
 import { pluginMicro } from './pluginTag.js';
@@ -570,6 +571,7 @@ export function SettingsModal({ open, onClose }) {
       <${HotkeySection} keys=${s.keys} touchUi=${touchUi} />
       <${CosmeticSection} />
       <${UiPluginSection} />
+      <${ChatPluginSection} />
       <${StorageSection} />
       <${DiagSection} />
       <p class="set-hint">${touchUi ? t('触屏操作：点击单位选中（撤退 / 出售）· 长按单位或卡牌查看详情 · 拖动部署后滑动选择朝向') : t('右键查看详情')}</p>

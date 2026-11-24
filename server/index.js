@@ -66,6 +66,8 @@ import { createStudio } from './studio/index.js';
 import { MIME, COMPRESSIBLE, acceptsGzip, pickEncoding, parseRange } from './http/files.js';
 import { BUILD_INPUTS, computeBuildTag, buildTag, resetBuildTag } from './http/buildTag.js';
 import { createRequestHandler } from './http/routes.js';
+import { wireAdmin } from './admin/index.js'; // [auth-fork]
+import { wireChat } from './chat/index.js'; // [auth-fork]
 import { createTrafficCounter } from './http/traffic.js';
 import { createAssetIndex } from './http/assetIndex.js';
 import { createManifestViews } from './http/assetViews.js';
@@ -171,6 +173,8 @@ export async function startServer(opts = {}) {
   log.info(`[versions] enabled: ${versions.ids.map((id) => `${id} (${t(/** @type {any} */ (versionById(id)).label)}${id === versions.defaultId ? ', default' : ''})`).join(', ')}`);
   const simPool = createRoomWorkerPool({ data });
   const { registry, lobby, network } = createSessionStack(opts, { data, log, content, plugins: roomSets, hosts, versions, versionHosts, simPool });
+  wireAdmin({ network, lobby, registry, log }); // [auth-fork]
+  wireChat({ registry, log }); // [auth-fork]
   // Main-thread event-loop delay sampling (server/health/eventLoop.js): opt-in with SP_LOOP_SAMPLE=1, no worker pool involved, and a
   // LOCAL log line per window (`[loop] p50=… p95=… p99=… max=… cpu=… mem=… rooms=… humans=… phase=…`) — deliberately not
   // part of /healthz. This is what tells an operator whether a stall is the rehearsal / battle slice or something else.

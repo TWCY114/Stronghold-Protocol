@@ -45,6 +45,8 @@ import { randomBytes } from 'node:crypto';
 import { isIP } from 'node:net';
 import { C2S, validateC2S } from '../shared/protocol.js';
 import { ERR, ERR_TEXT, NAME_MAX_LEN, PROTOCOL_VERSION } from '../shared/constants.js';
+import { bindHello, welcomeExtra } from './auth/session.js'; // [auth-fork]
+import { handleChat } from './chat/ws.js'; // [auth-fork]
 
 /** Tunables (all overridable through the Network / SessionRegistry constructors). */
 export const NET_DEFAULTS = Object.freeze({
@@ -596,6 +598,7 @@ export class Network {
   handleConnection(ws, req) {
     if (this.closed) { try { ws.close(CLOSE.SHUTDOWN, 'server shutdown'); } catch { /* ignore */ } return; }
     const conn = new Connection(ws, clientAddress(req, this.opts.trustProxy), this.now(), this.opts);
+    conn.spAccount = req.spAccount || null; // [auth-fork]
     this.conns.set(ws, conn);
     if (conn.key) this.connsPerKey.set(conn.key, (this.connsPerKey.get(conn.key) || 0) + 1);
     ws.on('message', (data, isBinary) => {
@@ -633,6 +636,7 @@ export class Network {
     let msg;
     try { msg = JSON.parse(data.toString('utf8')); } catch { this.reply(conn, errorMsg(ERR.BAD_MSG, undefined, 'invalid json')); return; }
     const rid = msg && typeof msg === 'object' ? msg.rid : undefined;
+    if (msg && typeof msg.t === 'string' && (msg.t.startsWith('chat.') || msg.t.startsWith('friend.') || msg.t.startsWith('pm.'))) { handleChat(conn, msg); return; } // [auth-fork]
     // Own-property check first: validateC2S alone would accept inherited keys like "constructor".
     if (!msg || typeof msg !== 'object' || Array.isArray(msg) || typeof msg.t !== 'string' || !Object.hasOwn(C2S, msg.t)) {
       const t = msg && typeof msg === 'object' ? String(msg.t).slice(0, 32) : typeof msg;
@@ -746,6 +750,7 @@ export class Network {
     }
     session.name = name;
     session.lastSeen = now;
+    bindHello(conn, session); // [auth-fork]
     session.addr = conn.ip;
     session.limitKey = conn.key;
     // Opt-in state deltas (shared/stateDelta.js): a hello may name the version it decodes. A repeated hello keeps the
@@ -755,6 +760,7 @@ export class Network {
     let extra = null;
     try { extra = this.handler.welcomeInfo?.() ?? null; } catch (e) { this.log.error('[net] welcomeInfo crashed', e); }
     const welcome = { ...(extra && typeof extra === 'object' ? extra : null), t: 'welcome', playerId: session.playerId, token: session.token, name: session.name, serverNow: now, version: PROTOCOL_VERSION, resumed };
+    const accountExtra = welcomeExtra(session); if (accountExtra) Object.assign(welcome, accountExtra); // [auth-fork]
     if (session.aiTakeoverFrom) { welcome.takeoverFrom = session.aiTakeoverFrom; session.aiTakeoverFrom = null; }
     if (validRid(rid)) welcome.rid = rid;
     this.reply(conn, welcome);

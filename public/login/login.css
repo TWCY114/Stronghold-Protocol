@@ -1,0 +1,75 @@
+/* public/login/login.css — QQ-style sign-in (narrow vertical card, centred avatar, stacked fields, one solid action
+   button, bottom links). Colour follows the game's 同盟模拟 button: mint #4ed8af, solid (no gradient). Token-only default. */
+:root {
+  --bg: #0d1117; --card: #161b22; --line: #2a313c; --text: #e6edf3; --muted: #8b949e;
+  --mint: #4ed8af; --mint-hi: #59f4ca; --mint-dim: rgba(78,216,175,.5);
+  --mint-a10: rgba(78,216,175,.10); --mint-a20: rgba(78,216,175,.20);
+  --err: #ff7b72; --ok: #7ee787;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; color: var(--text);
+  background: radial-gradient(900px 500px at 50% -10%, rgba(78,216,175,.10), transparent 60%), var(--bg);
+  display: flex;
+}
+.login-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.login-card {
+  width: 100%; max-width: 320px; background: var(--card); border: 1px solid var(--line);
+  border-radius: 14px; padding: 0 26px 22px; box-shadow: 0 20px 60px rgba(0,0,0,.5); overflow: hidden;
+}
+.login-head { text-align: center; padding: 30px 0 18px; }
+.login-mark {
+  width: 72px; height: 72px; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--mint-dim); border-radius: 50%; color: var(--mint); font-weight: 700; font-size: 22px;
+  letter-spacing: .04em; background: var(--mint-a10);
+}
+.login-title { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: .04em; }
+.login-title span { color: var(--mint); margin-left: .3em; }
+.login-sub { margin: 5px 0 0; font-size: 11px; color: var(--muted); letter-spacing: .03em; }
+.login-mode { display: flex; justify-content: center; gap: 18px; margin-bottom: 16px; }
+.login-mode button {
+  padding: 0 0 5px; font-size: 13px; cursor: pointer; color: var(--muted); background: none; border: none;
+  border-bottom: 2px solid transparent; transition: .15s;
+}
+.login-mode button.is-active { color: var(--mint-hi); border-bottom-color: var(--mint); }
+.login-form { display: flex; flex-direction: column; gap: 12px; }
+.login-form.is-hidden { display: none; }
+.login-fields { display: flex; flex-direction: column; gap: 12px; }
+.login-fields.is-hidden { display: none; }
+.login-field { display: flex; flex-direction: column; gap: 0; }
+.login-field input {
+  padding: 11px 12px; font-size: 14px; color: var(--text); background: #0d1117;
+  border: 1px solid var(--line); border-radius: 8px; outline: none; transition: .15s; font-family: inherit;
+}
+.login-field input:focus { border-color: var(--mint); }
+.login-field input.mono { font-family: "Consolas", "Menlo", monospace; font-size: 12px; }
+.login-hint { margin: 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
+.login-submit {
+  margin-top: 6px; padding: 12px 0; font-size: 15px; font-weight: 600; cursor: pointer; letter-spacing: .1em;
+  color: #04140f; background: var(--mint); border: none; border-radius: 8px; transition: .15s;
+}
+.login-submit:hover { background: var(--mint-hi); }
+.login-submit:disabled { opacity: .6; cursor: default; }
+.login-links { display: flex; justify-content: space-between; margin-top: 16px; }
+.login-links button { background: none; border: none; cursor: pointer; font-size: 12px; color: var(--muted); padding: 0; }
+.login-links button:hover { color: var(--mint-hi); }
+.login-back { background: none; border: none; cursor: pointer; font-size: 12px; color: var(--muted); padding: 0; margin-bottom: 12px; align-self: flex-start; }
+.login-back:hover { color: var(--mint-hi); }
+.login-msg { min-height: 16px; margin: 12px 0 0; font-size: 12px; text-align: center; color: var(--muted); }
+.login-msg.is-err { color: var(--err); }
+.login-msg.is-ok { color: var(--ok); }
+.login-foot { margin-top: 14px; font-size: 10px; text-align: center; color: var(--muted); opacity: .7; }
+.login-token { display: flex; flex-direction: column; gap: 12px; }
+.login-token.is-hidden { display: none; }
+.login-token h3 { margin: 0; font-size: 15px; color: var(--mint-hi); text-align: center; }
+.login-token p { margin: 0; font-size: 12px; line-height: 1.6; color: var(--muted); }
+.login-token .tok-box {
+  padding: 12px; background: #0d1117; border: 1px solid var(--mint-dim); border-radius: 8px;
+  font-family: "Consolas", "Menlo", monospace; font-size: 12px; color: var(--mint-hi); word-break: break-all; line-height: 1.5; user-select: all;
+}
+.login-token .tok-warn { color: var(--err); font-size: 12px; }
+.login-token .tok-actions { display: flex; gap: 8px; }
+.login-token .tok-actions button { flex: 1; padding: 11px 0; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 8px; border: none; }
+.login-token .tok-copy { color: var(--mint-hi); background: var(--mint-a20); border: 1px solid var(--mint-dim) !important; }
+.login-token .tok-enter { color: #04140f; background: var(--mint); }

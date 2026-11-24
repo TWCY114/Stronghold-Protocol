@@ -46,6 +46,9 @@ import { html, UiHosts, Button, MicroLabel, closeAllDialogs } from './ui/compone
 import { ConnectionBanner } from './ui/connBanner.js';
 import { ToastHost, toast, toastError, describeError } from './ui/toasts.js';
 import { net, identity, NetError } from './net.js';
+import { requireLogin } from './auth/gate.js'; // [auth-fork]
+import { installChat } from './chat/panel.js'; // [auth-fork]
+import { installFriends } from './chat/friends.js'; // [auth-fork]
 import { store, useStore, emptyMatch, selectRoute, sessionResetNotice, isSpectating } from './store.js';
 import { data } from './data.js';
 import { GAME_FILES } from './ui/gameComponents.js';
@@ -418,6 +421,7 @@ function installGlobalErrorHandlers() {
 }
 
 async function boot() {
+  if (!(await requireLogin())) return; // [auth-fork]
   installGlobalErrorHandlers();
   // what this page downloads, by category, for the 问题反馈 report's traffic line (diag.js; nothing is sent anywhere)
   installTrafficMeter();
@@ -440,6 +444,8 @@ async function boot() {
   }));
 
   wireNet();
+  installChat({ net }); // [auth-fork]
+  installFriends(); // [auth-fork]
   installStatsRecorder(store); // follows the match on screen, so a 放弃模拟 can be recorded (ui/stats.js)
   // the loadout / 干员持有 / 自选 settings by operator, shown for the data on screen (DESIGN §35.23; a v1 store migrates)
   installSettingsViews();

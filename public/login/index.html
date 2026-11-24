@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1117">
+  <title>登录 · 卫戍协议：盟约</title>
+  <link rel="stylesheet" href="/login/login.css">
+</head>
+<body>
+  <main class="login-wrap">
+    <section class="login-card" aria-label="登录">
+      <header class="login-head">
+        <div class="login-mark">SP</div>
+        <h1 class="login-title">卫戍协议<span>盟约</span></h1>
+        <p class="login-sub">Stronghold Protocol · 非官方同人联机</p>
+      </header>
+
+      <form class="login-form" data-panel="login" autocomplete="on">
+        <div class="login-mode" data-modefor="login">
+          <button type="button" data-mode="token" class="is-active">token 登录</button>
+          <button type="button" data-mode="password">密码登录</button>
+        </div>
+        <div class="login-fields" data-fields="token">
+          <label class="login-field">
+            <input name="token" type="text" class="mono" autocomplete="off" placeholder="粘贴你保管的登录 token" required>
+          </label>
+          <p class="login-hint">注册选「仅使用 token」会给你一串永久 token，凭它登录。</p>
+        </div>
+        <div class="login-fields is-hidden" data-fields="password">
+          <label class="login-field"><input name="username" type="text" autocomplete="username" maxlength="16" placeholder="用户名"></label>
+          <label class="login-field"><input name="password" type="password" autocomplete="current-password" maxlength="64" placeholder="密码"></label>
+        </div>
+        <button class="login-submit" type="submit">登 录</button>
+        <div class="login-links">
+          <button type="button" data-go="register">注册账号</button>
+          <button type="button" data-go="guest">游客试玩</button>
+        </div>
+      </form>
+
+      <form class="login-form is-hidden" data-panel="register" autocomplete="on">
+        <button type="button" class="login-back" data-go="login">← 返回登录</button>
+        <div class="login-mode" data-modefor="register">
+          <button type="button" data-mode="token" class="is-active">仅使用 token</button>
+          <button type="button" data-mode="password">密码注册</button>
+        </div>
+        <div class="login-fields" data-fields="token">
+          <label class="login-field"><input name="username" type="text" autocomplete="username" maxlength="16" placeholder="用户名（2–16 位字母 / 数字 / 中文）" required></label>
+          <p class="login-hint">无需密码。注册后直接把永久 token 给你保管，凭它登录。</p>
+        </div>
+        <div class="login-fields is-hidden" data-fields="password">
+          <label class="login-field"><input name="username" type="text" autocomplete="username" maxlength="16" placeholder="用户名"></label>
+          <label class="login-field"><input name="password" type="password" autocomplete="new-password" maxlength="64" placeholder="密码（6–64 位）"></label>
+          <label class="login-field"><input name="confirm" type="password" autocomplete="new-password" maxlength="64" placeholder="确认密码"></label>
+        </div>
+        <button class="login-submit" type="submit">注 册</button>
+      </form>
+
+      <form class="login-form is-hidden" data-panel="guest" autocomplete="off">
+        <button type="button" class="login-back" data-go="login">← 返回登录</button>
+        <label class="login-field"><input name="name" type="text" maxlength="16" placeholder="起个名字（无需注册）" required></label>
+        <p class="login-hint">游客可联机与大厅聊天，无好友与持久记录；通行证 2 小时有效。</p>
+        <button class="login-submit" type="submit">进入游戏</button>
+      </form>
+
+      <div class="login-token is-hidden" id="token-result">
+        <h3>请保管好你的登录 token</h3>
+        <p>这是你账号的唯一登录凭证（永久有效）。下次在「token 登录」粘贴它即可。</p>
+        <div class="tok-box" id="tok-value"></div>
+        <p class="tok-warn">⚠ 丢失后无法找回（无密码）。请复制保存到安全的地方。</p>
+        <div class="tok-actions">
+          <button type="button" class="tok-copy" id="tok-copy">复制 token</button>
+          <button type="button" class="tok-enter" id="tok-enter">我已保存，进入</button>
+        </div>
+      </div>
+
+      <p class="login-msg" role="alert" aria-live="polite"></p>
+      <footer class="login-foot">登录即代表同意遵守房间规则 · 数据仅存于本服务器</footer>
+    </section>
+  </main>
+  <script type="module" src="/login/login.js"></script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0d1117">
+  <title>管理后台 · 卫戍协议：盟约</title>
+  <link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body>
+  <div class="adm-shell">
+    <header class="adm-top">
+      <div class="adm-brand"><span class="adm-mark">SP</span><div><b>管理后台</b><small>卫戍协议：盟约 · Stronghold Protocol</small></div></div>
+      <div class="adm-top-right">
+        <span class="adm-who" id="who"></span>
+        <a class="adm-link" href="/">返回游戏</a>
+        <button class="adm-btn ghost" id="logout">退出</button>
+      </div>
+    </header>
+
+    <div class="adm-gate is-hidden" id="gate">
+      <p>需要管理员权限。请用管理员账号登录。</p>
+      <a class="adm-btn" href="/login">去登录</a>
+    </div>
+
+    <main class="adm-main" id="main">
+      <section class="adm-cards" id="cards"></section>
+
+      <section class="adm-panel">
+        <div class="adm-panel-head"><h2>在线人数 · 实时折线</h2><span class="adm-sub" id="chart-range"></span></div>
+        <div class="adm-chart-wrap"><svg id="chart" viewBox="0 0 900 260" preserveAspectRatio="none"></svg></div>
+      </section>
+
+      <nav class="adm-tabs">
+        <button class="adm-tab is-active" data-tab="players">在线玩家</button>
+        <button class="adm-tab" data-tab="rooms">房间 / 对局</button>
+        <button class="adm-tab" data-tab="accounts">账号管理</button>
+      </nav>
+
+      <section class="adm-panel" data-panel="players">
+        <div class="adm-panel-head"><h2>在线玩家</h2><button class="adm-btn ghost" data-refresh="players">刷新</button></div>
+        <div class="adm-table-wrap"><table class="adm-table" id="players-table"></table></div>
+      </section>
+
+      <section class="adm-panel is-hidden" data-panel="rooms">
+        <div class="adm-panel-head"><h2>房间 / 对局</h2><button class="adm-btn ghost" data-refresh="rooms">刷新</button></div>
+        <div class="adm-table-wrap"><table class="adm-table" id="rooms-table"></table></div>
+      </section>
+
+      <section class="adm-panel is-hidden" data-panel="accounts">
+        <div class="adm-panel-head"><h2>账号管理</h2><button class="adm-btn ghost" data-refresh="accounts">刷新</button></div>
+        <form class="adm-create" id="create-form">
+          <input name="username" placeholder="新用户名" maxlength="16" required>
+          <input name="password" type="password" placeholder="密码 ≥6 位" maxlength="64" required>
+          <select name="role"><option value="user">普通</option><option value="admin">管理员</option></select>
+          <button class="adm-btn" type="submit">创建账号</button>
+        </form>
+        <div class="adm-table-wrap"><table class="adm-table" id="accounts-table"></table></div>
+      </section>
+    </main>
+    <p class="adm-msg" id="msg" role="alert"></p>
+  </div>
+  <script type="module" src="/admin/admin.js"></script>
+</body>
+</html>
