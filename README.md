@@ -26,6 +26,19 @@
 
 > 下方为原作者 README，内容保留未删。
 
+### 维护与贡献者
+
+[![All Contributors](https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square)](#维护与贡献者)
+
+GitHub 侧栏的自动 Contributors 统计图对 fork 常常不生成，故在此**显式署名**（原作者保留）：
+
+| 贡献者 | 角色 |
+|---|---|
+| [sganggs](https://github.com/sganggs) | 原作者 · 引擎与玩法（上游 2271 提交） |
+| [TWCY114](https://github.com/TWCY114) | 二次分发维护 · 账号 / 管理 / 社交 / 对局控制 |
+
+欢迎贡献：修 bug、加功能、翻译、写文档、提建议均可，见 [贡献](#贡献) 与 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
 ## 声明
 
 > [!IMPORTANT]
