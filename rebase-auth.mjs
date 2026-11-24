@@ -192,6 +192,11 @@ hook('public/js/ui/device.js',
   `export const PWA_ORIGIN = 'https://twcy.antu.fun:34673';\n`,
   `export const PWA_ORIGIN = 'https://twcy.antu.fun:34671';\n`, { mode: 'replace' });
 
+// ---- public/js/ui/gameLogic/settings.js: fork default 作战统计 on (fresh origins get the DPS/HPS panel) --------------
+hook('public/js/ui/gameLogic/settings.js',
+  `bondTimers: false, combatMetrics: false, prepDeployFold: true,`,
+  `bondTimers: false, combatMetrics: true, prepDeployFold: true,`, { mode: 'replace' });
+
 console.log(`\n钩子: 新打 ${applied}, 已存在跳过 ${skipped}, 失败 ${failed}`);
 if (failed) { console.error('有锚点失败：官方重构了钩子宿主，请人工适配后重跑。'); process.exit(1); }
 
