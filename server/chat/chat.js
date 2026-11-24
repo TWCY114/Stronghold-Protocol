@@ -70,12 +70,14 @@ export function createChat({ dbPath, registry, log, now = Date.now }) {
         for (const s of registry.byPlayerId.values()) if (s.connected && s.roomCode === code) send(s, { ...base, channel: 'room', roomCode: code });
         return { ok: true, channel: 'room' };
       }
-      store.insertLobby(session.accountId ?? null, name, body, now());
-      broadcast({ ...base, channel: 'world' });
+      // [admin-title] admins carry a configurable 称号 (default 管理) shown as [管理] right after [世界].
+      const title = session.role === 'admin' ? (getAuth().store.adminTitleOf(session.accountId) || '管理') : null;
+      store.insertLobby(session.accountId ?? null, name, body, title, now());
+      broadcast({ ...base, channel: 'world', title });
       return { ok: true, channel: 'world' };
     },
     /** Channel history: world (lobby) or the sender's current room. */
-    history(session, channel = 'world', limit = 50) {
+    history(session, channel = 'world', limit = 100) {
       if (channel === 'room') return session.roomCode ? store.roomRecent(session.roomCode, limit) : [];
       return store.lobbyRecent(limit);
     },
@@ -170,6 +172,10 @@ export function createChat({ dbPath, registry, log, now = Date.now }) {
       if (!accountId || !name) return;
       store.renameSender(accountId, name);
       for (const s of registry.byPlayerId.values()) if (s.connected) send(s, { t: 'chat.rename', accountId, name, at: now() });
+    },
+    /** [announce] 全服紧急公告: one marquee pass on EVERY connected client, on whatever screen they are on. */
+    announce({ text, size, color, speed, by }) {
+      broadcast({ t: 'announce', text, size, color, speed, by, at: now() });
     },
     close() { store.close(); },
   };

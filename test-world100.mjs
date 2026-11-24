@@ -1,0 +1,21 @@
+// test-world100.mjs — [world-100] lobby history trimmed to 100; room keeps 200 (unaffected); title column persists.
+import { createChatStore } from './server/chat/store.js';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+let pass = 0, fail = 0;
+const ok = (c, l, x = '') => { if (c) { pass++; console.log(`  ✓ ${l}`); } else { fail++; console.log(`  ✗ ${l} ${x}`); } };
+const dir = mkdtempSync(join(tmpdir(), 'sp-w100-'));
+const s = createChatStore({ dbPath: join(dir, 'chat.db') });
+for (let i = 0; i < 105; i++) s.insertLobby(1, '甲', 'msg' + i, i === 104 ? '大佬' : null, 1000 + i);
+const lobby = s.lobbyRecent(500);
+ok(lobby.length === 100, '世界频道只保留 100 条', String(lobby.length));
+ok(lobby[lobby.length - 1].body === 'msg104' && lobby[0].body === 'msg5', '保留最新 100 条（msg5..msg104）', lobby[0].body + '..' + lobby[lobby.length - 1].body);
+ok(lobby[lobby.length - 1].title === '大佬', 'title 列持久化');
+for (let i = 0; i < 205; i++) s.insertRoom('ABCD', 1, '甲', 'r' + i, 1000 + i);
+const room = s.roomRecent('ABCD', 500);
+ok(room.length === 200, '房间频道保留 200 条（不受 100 限制）', String(room.length));
+s.close();
+rmSync(dir, { recursive: true, force: true });
+console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
+process.exit(fail ? 1 : 0);

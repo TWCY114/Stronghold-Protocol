@@ -259,10 +259,29 @@ $('#create-form').addEventListener('submit', async (e) => {
   loadAccounts();
 });
 
+// [admin-title] / [announce] broadcast tab: load this admin's 称号, save it, and fire a server-wide marquee.
+async function loadBroadcast() {
+  const { j } = await api('/api/admin/title');
+  if (j?.ok) $('#title-input').value = j.title || '管理';
+}
+$('#title-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const title = $('#title-input').value.trim();
+  const { j } = await api('/api/admin/title', { method: 'POST', body: { title } });
+  toast(j?.ok ? ('称号已保存：' + j.title) : ('失败：' + (j?.error || '')), j?.ok ? 'ok' : 'err');
+});
+$('#announce-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const body = { text: $('#ann-text').value.trim(), size: Number($('#ann-size').value), speed: Number($('#ann-speed').value), color: $('#ann-color').value };
+  const { j } = await api('/api/admin/announce', { method: 'POST', body });
+  toast(j?.ok ? '公告已发送到全服' : ('失败：' + (j?.error || '')), j?.ok ? 'ok' : 'err');
+  if (j?.ok) $('#ann-text').value = '';
+});
+
 $$('.adm-tab').forEach((t) => t.addEventListener('click', () => {
   $$('.adm-tab').forEach((x) => x.classList.toggle('is-active', x === t));
   $$('[data-panel]').forEach((p) => p.classList.toggle('is-hidden', p.dataset.panel !== t.dataset.tab));
-  ({ players: loadPlayers, rooms: loadRooms, accounts: loadAccounts })[t.dataset.tab]?.();
+  ({ players: loadPlayers, rooms: loadRooms, accounts: loadAccounts, broadcast: loadBroadcast })[t.dataset.tab]?.();
 }));
 
 $('#logout').addEventListener('click', async () => {

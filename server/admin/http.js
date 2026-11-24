@@ -9,6 +9,7 @@ import { sendJson, sendError } from '../http/common.js';
 import { getAuth } from '../auth/index.js';
 import { hashPassword } from '../auth/auth.js';
 import { getAdmin } from './index.js';
+import { getChat } from '../chat/index.js';
 import { matchState, editFunds, editRound } from './matchEdit.js';   // [auth-fork] live-match admin editing
 
 const MAX_BODY = 8192;
@@ -117,6 +118,10 @@ async function handle(req, res, parts) {
       sendJson(req, res, 200, room ? await matchState(room) : { ok: false, error: 'no_room' });
       return true;
     }
+    if (path === '/api/admin/title') {   // [admin-title] this admin's current world-channel 称号
+      sendJson(req, res, 200, { ok: true, title: store.adminTitleOf(v.account.id) || '管理' });
+      return true;
+    }
     sendError(req, res, 404, 'Not found');
     return true;
   }
@@ -135,6 +140,29 @@ async function handle(req, res, parts) {
     if (cmd === 'funds') { sendJson(req, res, 200, await editFunds(room, body.playerId, body.amount)); return true; }
     if (cmd === 'round') { sendJson(req, res, 200, await editRound(room, body.round)); return true; }
     sendJson(req, res, 400, { ok: false, error: 'bad_cmd' });
+    return true;
+  }
+
+  if (path === '/api/admin/title') {   // [admin-title] set this admin's world-channel 称号 (shown as [称号] after [世界])
+    const title = String(body.title ?? '').trim().slice(0, 8);
+    if (!title) { sendJson(req, res, 400, { ok: false, error: 'bad_title' }); return true; }
+    store.setAdminTitle(v.account.id, title);
+    sendJson(req, res, 200, { ok: true, title });
+    return true;
+  }
+
+  if (path === '/api/admin/announce') {   // [announce] 全服紧急公告: one non-blocking marquee pass on every client
+    const text = String(body.text ?? '').trim().slice(0, 120);
+    if (!text) { sendJson(req, res, 400, { ok: false, error: 'bad_text' }); return true; }
+    const size = Math.min(64, Math.max(12, Number(body.size) || 22));
+    const speed = Math.min(600, Math.max(40, Number(body.speed) || 160));
+    const colorRaw = String(body.color ?? '').trim();
+    const color = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(colorRaw) ? colorRaw : '#ff5555';
+    const chat = getChat();
+    if (!chat) { sendJson(req, res, 503, { ok: false, error: 'not_ready' }); return true; }
+    const tag = store.tagOf(v.account.id);
+    chat.announce({ text, size, color, speed, by: tag ? tag.tag : (v.account.username || 'admin') });
+    sendJson(req, res, 200, { ok: true, text, size, color, speed });
     return true;
   }
 

@@ -35,6 +35,7 @@
         <button class="adm-tab is-active" data-tab="players">在线玩家</button>
         <button class="adm-tab" data-tab="rooms">房间 / 对局</button>
         <button class="adm-tab" data-tab="accounts">账号管理</button>
+        <button class="adm-tab" data-tab="broadcast">公告 / 称号</button>
       </nav>
 
       <section class="adm-panel" data-panel="players">
@@ -56,6 +57,31 @@
           <button class="adm-btn" type="submit">创建账号</button>
         </form>
         <div class="adm-table-wrap"><table class="adm-table" id="accounts-table"></table></div>
+      </section>
+
+      <section class="adm-panel is-hidden" data-panel="broadcast">
+        <div class="adm-panel-head"><h2>世界频道称号</h2></div>
+        <form class="adm-create" id="title-form">
+          <input name="title" id="title-input" placeholder="称号（默认 管理，≤8 字）" maxlength="8">
+          <button class="adm-btn" type="submit">保存称号</button>
+        </form>
+        <p class="adm-sub" style="margin:6px 2px">管理员在世界频道发言时，[世界] 后会显示 [称号]。</p>
+
+        <div class="adm-panel-head" style="margin-top:14px"><h2>全服紧急公告</h2></div>
+        <form class="adm-create" id="announce-form" style="flex-wrap:wrap">
+          <input name="text" id="ann-text" placeholder="公告内容（≤120 字）" maxlength="120" required style="flex:1 1 100%">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#9aa7a1">大小
+            <input name="size" id="ann-size" type="number" min="12" max="64" value="22" style="width:70px">
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#9aa7a1">流速(px/s)
+            <input name="speed" id="ann-speed" type="number" min="40" max="600" value="160" style="width:80px">
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#9aa7a1">颜色
+            <input name="color" id="ann-color" type="color" value="#ff5555" style="width:44px;padding:2px">
+          </label>
+          <button class="adm-btn" type="submit">发送公告</button>
+        </form>
+        <p class="adm-sub" style="margin:6px 2px">发送后所有在线玩家（无论哪个界面）顶部会飘过一行弹幕，不阻挡任何操作。</p>
       </section>
     </main>
     <p class="adm-msg" id="msg" role="alert"></p>

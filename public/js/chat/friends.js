@@ -9,6 +9,12 @@ import { render } from '../../vendor/preact.module.js';
 import { useState, useEffect, useRef } from '../../vendor/hooks.module.js';
 import { getToken } from '../auth/gate.js';
 import { openCard } from './profile.js';
+import { richNodes } from './rich.js';
+
+// [rich-chat] render a chat/PM body with colour + emoji codes as safe DOM nodes (no HTML injection).
+function RichText({ text }) {
+  return html`<span ref=${(el) => { if (el) { el.textContent = ''; for (const n of richNodes(text || '')) el.append(n); } }}></span>`;
+}
 
 const ERR = { need_account: '该功能需注册账号', bad_target: '目标无效', already_friends: '已经是好友', no_request: '没有该申请', not_friends: '对方不是你的好友', empty: '不能发空消息', rate_limited: '发言太快，稍等', not_online: '对方不在线', no_room: '你不在同盟中' };
 const fstore = createStore({ own: null, friends: [], requests: [], pmTarget: null, pmName: '', pm: [], open: false, invitePicker: false, inviteRoom: null });
@@ -90,7 +96,7 @@ function FriendsModal({ onClose }) {
   const pmView = html`<div class="fr-pm">
     <div class="fr-pm__head"><button class="fr-back" onClick=${() => fstore.set({ pmTarget: null, pm: [] })}>← 返回</button><span>私聊 · ${s.pmName || '账号' + s.pmTarget}</span></div>
     <div class="fr-pm__list" ref=${listRef}>
-      ${!s.pm.length ? html`<p class="fr-empty">暂无私聊记录</p>` : s.pm.map((m, i) => html`<div key=${i} class=${'fr-line' + (m.from_id === s.own ? ' mine' : '')}><b>${m.from_id === s.own ? '我' : (s.pmName || '对方')}</b>: ${m.body}<span class="fr-t">${m.created_at ? hhmm(m.created_at) : ''}</span></div>`)}
+      ${!s.pm.length ? html`<p class="fr-empty">暂无私聊记录</p>` : s.pm.map((m, i) => html`<div key=${i} class=${'fr-line' + (m.from_id === s.own ? ' mine' : '')}><b>${m.from_id === s.own ? '我' : (s.pmName || '对方')}</b>: <${RichText} text=${m.body} /><span class="fr-t">${m.created_at ? hhmm(m.created_at) : ''}</span></div>`)}
     </div>
     <div class="fr-pm__input"><input type="text" value=${draft} onInput=${(e) => setDraft(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter') sendPM(); }} onWheel=${(e) => e.currentTarget.blur()} placeholder="私聊消息…" maxLength=${300} /><${Button} size="sm" onClick=${sendPM}>发送<//></div>
   </div>`;

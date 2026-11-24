@@ -11,6 +11,8 @@
 import { getToken } from '../auth/gate.js';
 import { store, selectRoute } from '../store.js';
 import { chatEnabled } from './pref.js';
+import { richNodes } from './rich.js';
+import { installAnnounce } from './announce.js';
 
 const CSS = `
 .sp-chat{position:fixed;z-index:9000;display:flex;flex-direction:column;background:transparent;border:1px solid transparent;border-radius:10px;overflow:hidden;font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
@@ -22,7 +24,10 @@ const CSS = `
 .sp-chat-line{font-size:12.5px;line-height:1.45;color:#e6edf3;word-break:break-word}
 .sp-chat-line.new{animation:spFade .22s ease}
 .sp-chat-line .ch{color:var(--mint-400,#59f4ca);margin-right:6px;font-size:11.5px}
+.sp-chat-line .adm{color:var(--red,#ff483b);margin-right:6px;font-size:11.5px;font-weight:700}
 .sp-chat-line .who{font-weight:600;color:var(--mint-400,#59f4ca)}
+.sp-chat:not(.is-open) .sp-chat-log{overflow-y:hidden;scrollbar-width:none}
+.sp-chat:not(.is-open) .sp-chat-log::-webkit-scrollbar{display:none}
 .sp-chat-line .who.clickable{cursor:pointer}
 .sp-chat-line .who.clickable:hover{text-decoration:underline}
 .sp-chat-line .who.guest{color:#9aa7a1}
@@ -119,6 +124,8 @@ export function installChat({ net }) {
     const ch = m.channel === 'room' ? 'room' : (m.roomCode ? 'room' : 'world');
     const d = el('div', 'sp-chat-line' + (animate ? ' new' : '') + ((m.accountId === state.own || m.account_id === state.own) ? ' mine' : ''));
     d.append(el('span', 'ch', ch === 'room' ? '[房间]' : '[世界]'));
+    // [admin-title] an admin's world line carries a configurable 称号 right after [世界].
+    if (ch === 'world' && m.title) d.append(el('span', 'adm', '[' + m.title + ']'));
     const who = el('span', 'who' + (m.guest ? ' guest' : ''), m.name || m.fromName || '玩家');
     const aid = m.accountId ?? m.account_id;
     if (aid && !m.guest) {   // [player-id] click a registered player's name → 名片
@@ -126,7 +133,8 @@ export function installChat({ net }) {
       who.addEventListener('click', () => window.dispatchEvent(new CustomEvent('sp-player-card', { detail: { id: aid } })));
     }
     d.append(who);
-    d.append(document.createTextNode(': ' + (m.body || '')));
+    d.append(document.createTextNode(': '));
+    for (const n of richNodes(m.body || '')) d.append(n);   // [rich-chat] colour / emoji codes
     // [friend-invite] a room invite link in the message gets a one-click 加入房间 button (world lobby broadcast).
     const mm = (m.body || '').match(/[?&]room=([A-Za-z0-9_-]{4,12})/);
     if (mm) {
@@ -148,13 +156,15 @@ export function installChat({ net }) {
   let stick = true, rebuilding = false;
   log.addEventListener('scroll', () => { if (!rebuilding) stick = log.scrollHeight - log.scrollTop - log.clientHeight < 24; });
   const toBottom = () => { log.scrollTop = log.scrollHeight; stick = true; };
+  // [world-100] the lobby (world) channel keeps 100 lines; room stays compact. PM is unaffected (separate modal).
+  const domCap = () => (state.channel === 'world' ? 100 : 40);
   function appendLine(m) {
     const empty = log.querySelector('.sp-chat-empty'); if (empty) empty.remove();
     const mine = m.accountId === state.own || m.account_id === state.own;
     const keep = stick || mine, prevTop = log.scrollTop;
     log.append(lineNode(m, true));
     let removed = 0;
-    while (log.querySelectorAll('.sp-chat-line').length > 40) { const n = log.querySelector('.sp-chat-line'); removed += n.offsetHeight + 3; n.remove(); }
+    while (log.querySelectorAll('.sp-chat-line').length > domCap()) { const n = log.querySelector('.sp-chat-line'); removed += n.offsetHeight + 3; n.remove(); }
     if (keep) toBottom(); else log.scrollTop = Math.max(0, prevTop - removed);
   }
   function rebuildLog(forceBottom) {
@@ -163,7 +173,7 @@ export function installChat({ net }) {
     log.innerHTML = '';
     const arr = state.msg[state.channel] || [];
     if (!arr.length) log.append(el('div', 'sp-chat-empty', state.channel === 'room' ? '房间频道暂无消息' : '世界频道暂无消息'));
-    else for (const m of arr.slice(-40)) log.append(lineNode(m, false));
+    else for (const m of arr.slice(-domCap())) log.append(lineNode(m, false));
     rebuilding = false;
     if (forceBottom || stick) toBottom(); else log.scrollTop = Math.max(0, Math.min(prevTop, log.scrollHeight - log.clientHeight));
   }
@@ -191,7 +201,7 @@ export function installChat({ net }) {
     if (state.open) input.focus();
   }
   function openChat() { state.open = true; syncView(); rebuildLog(true); input.focus(); }
-  function closeChat() { state.open = false; syncView(); input.blur(); }
+  function closeChat() { state.open = false; syncView(); input.blur(); toBottom(); }   // [scrollbar-hide] passive view shows newest, no scrollbar
   function doSend() {
     const v = input.value.trim(); if (!v) return;
     net.send('chat.send', { body: v, channel: state.channel });
@@ -239,7 +249,7 @@ export function installChat({ net }) {
   net.on('room.closed', () => { state.roomCode = null; if (state.channel === 'room') { state.channel = 'world'; rebuildLog(true); } syncView(); });
   net.on('chat.lobby', (m) => {
     const ch = m.channel === 'room' ? 'room' : 'world';
-    (state.msg[ch] ||= []).push(m); if (state.msg[ch].length > 120) state.msg[ch].shift();
+    (state.msg[ch] ||= []).push(m); const keep = ch === 'world' ? 100 : 120; if (state.msg[ch].length > keep) state.msg[ch].shift();   // [world-100]
     if (ch === state.channel) appendLine(m);
   });
   net.on('chat.history', (m) => {
@@ -248,7 +258,7 @@ export function installChat({ net }) {
     const hist = (m.messages || []).map((x) => ({ ...x, channel: ch })), cur = state.msg[ch] || [], seen = new Set(), merged = [];
     for (const x of [...hist, ...cur]) { const k = (x.at || x.created_at) + '|' + (x.name || '') + '|' + (x.body || ''); if (!seen.has(k)) { seen.add(k); merged.push(x); } }
     merged.sort((a, b) => (a.at || a.created_at) - (b.at || b.created_at));
-    state.msg[ch] = merged.slice(-120);
+    state.msg[ch] = merged.slice(-(ch === 'world' ? 100 : 120));   // [world-100]
     if (ch === state.channel) rebuildLog();
   });
   net.on('chat.error', (m) => toast(ERR[m.error] || '聊天错误'));
@@ -258,6 +268,8 @@ export function installChat({ net }) {
     for (const ch of ['world', 'room']) for (const x of state.msg[ch] || []) if ((x.accountId ?? x.account_id) === m.accountId) x.name = m.name;
     rebuildLog();
   });
+
+  installAnnounce({ net });   // [announce] 全服紧急公告 marquee on every screen
 
   (async () => {
     try { const t = getToken(); if (t) { const me = await (await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${t}` } })).json(); if (me.account) state.own = me.account.id; } } catch {}

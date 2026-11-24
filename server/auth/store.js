@@ -53,6 +53,8 @@ export function createAuthStore({ dbPath, log }) {
   const acctCols = db.prepare('PRAGMA table_info(accounts)').all().map((c) => c.name);
   if (!acctCols.includes('display_name')) db.exec('ALTER TABLE accounts ADD COLUMN display_name TEXT');
   if (!acctCols.includes('discriminator')) db.exec('ALTER TABLE accounts ADD COLUMN discriminator INTEGER');
+  // [admin-title] per-admin world-channel 称号 (default 管理), editable in the admin panel.
+  if (!acctCols.includes('admin_title')) db.exec('ALTER TABLE accounts ADD COLUMN admin_title TEXT');
   db.exec('UPDATE accounts SET display_name = username WHERE display_name IS NULL');
   const freeDisc = () => { const used = new Set(db.prepare('SELECT discriminator FROM accounts').all().map((r) => r.discriminator)); for (let i = 0; i < 200; i++) { const d = 1000 + Math.floor(Math.random() * 9000); if (!used.has(d)) return d; } let d = 10000; while (used.has(d)) d++; return d; };
   const putDisc = db.prepare('UPDATE accounts SET discriminator = ? WHERE id = ?');
@@ -161,6 +163,9 @@ export function createAuthStore({ dbPath, log }) {
     accountCount() { return Number(q.countAccounts.get().n); },
     setDisabled(id, disabled) { q.setDisabled.run(disabled ? 1 : 0, id); },
     setRole(id, role) { q.setRole.run(role, id); },
+    /** [admin-title] the admin's world-channel 称号; null/empty falls back to 管理 at render time. */
+    adminTitleOf(id) { const r = db.prepare('SELECT admin_title FROM accounts WHERE id = ?').get(id); return (r && r.admin_title) || null; },
+    setAdminTitle(id, title) { db.prepare('UPDATE accounts SET admin_title = ? WHERE id = ?').run(title || null, id); },
     setPassword(id, passHash) { q.setPass.run(passHash, id); },
     /** Remove an account and its tokens (P2 admin). */
     deleteAccount(id) { q.delAccountTokens.run(id); q.delAccount.run(id); },

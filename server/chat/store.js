@@ -10,7 +10,9 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const LOBBY_KEEP = 200;
+// [world-100] the WORLD lobby channel keeps only the last 100 records (user feature); room chat keeps its own budget.
+const LOBBY_KEEP = 100;
+const ROOM_KEEP = 200;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS friends (
@@ -29,7 +31,7 @@ CREATE INDEX IF NOT EXISTS messages_pair ON messages(from_id, to_id, id);
 CREATE INDEX IF NOT EXISTS messages_inbox ON messages(to_id, delivered);
 CREATE TABLE IF NOT EXISTS lobby_chat (
   id INTEGER PRIMARY KEY AUTOINCREMENT, account_id INTEGER, name TEXT NOT NULL,
-  body TEXT NOT NULL, created_at INTEGER NOT NULL
+  body TEXT NOT NULL, created_at INTEGER NOT NULL, title TEXT
 );
 CREATE TABLE IF NOT EXISTS room_chat (
   id INTEGER PRIMARY KEY AUTOINCREMENT, room_code TEXT NOT NULL, account_id INTEGER, name TEXT NOT NULL,
@@ -43,6 +45,7 @@ export function createChatStore({ dbPath, log }) {
   const db = new DatabaseSync(dbPath);
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec(SCHEMA);
+  try { db.exec('ALTER TABLE lobby_chat ADD COLUMN title TEXT'); } catch { /* [admin-title] column already present */ }
 
   const q = {
     addFriend: db.prepare('INSERT OR IGNORE INTO friends(a_id,b_id,created_at) VALUES(?,?,?)'),
@@ -58,7 +61,7 @@ export function createChatStore({ dbPath, log }) {
     pairMsgs: db.prepare('SELECT * FROM messages WHERE (from_id=? AND to_id=?) OR (from_id=? AND to_id=?) ORDER BY id DESC LIMIT ?'),
     undelivered: db.prepare('SELECT * FROM messages WHERE to_id=? AND delivered=0 ORDER BY id'),
     markDelivered: db.prepare('UPDATE messages SET delivered=1 WHERE to_id=? AND delivered=0'),
-    insLobby: db.prepare('INSERT INTO lobby_chat(account_id,name,body,created_at) VALUES(?,?,?,?)'),
+    insLobby: db.prepare('INSERT INTO lobby_chat(account_id,name,body,created_at,title) VALUES(?,?,?,?,?)'),
     lobbyRecent: db.prepare('SELECT * FROM lobby_chat ORDER BY id DESC LIMIT ?'),
     trimLobby: db.prepare('DELETE FROM lobby_chat WHERE id NOT IN (SELECT id FROM lobby_chat ORDER BY id DESC LIMIT ?)'),
     insRoom: db.prepare('INSERT INTO room_chat(room_code,account_id,name,body,created_at) VALUES(?,?,?,?,?)'),
@@ -92,14 +95,14 @@ export function createChatStore({ dbPath, log }) {
     conversation(a, b, limit = 100) { return q.pairMsgs.all(a, b, b, a, limit).reverse(); },
     undeliveredFor(to) { return q.undelivered.all(to); },
     markDelivered(to) { q.markDelivered.run(to); },
-    insertLobby(accountId, name, body, now = Date.now()) {
-      q.insLobby.run(accountId, name, body, now);
+    insertLobby(accountId, name, body, title = null, now = Date.now()) {
+      q.insLobby.run(accountId, name, body, now, title);
       q.trimLobby.run(LOBBY_KEEP);
     },
     lobbyRecent(limit = 50) { return q.lobbyRecent.all(limit).reverse(); },
     insertRoom(roomCode, accountId, name, body, now = Date.now()) {
       q.insRoom.run(roomCode, accountId, name, body, now);
-      q.trimRoom.run(roomCode, roomCode, LOBBY_KEEP);
+      q.trimRoom.run(roomCode, roomCode, ROOM_KEEP);
     },
     roomRecent(roomCode, limit = 50) { return q.roomRecent.all(roomCode, limit).reverse(); },
     /** [name-sync] a profile rename rewrites the sender name on every stored lobby / room line so history agrees too. */
