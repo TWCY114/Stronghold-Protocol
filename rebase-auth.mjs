@@ -138,6 +138,14 @@ hook('public/js/main.js',
   `  installChat({ net }); // [auth-fork]\n`,
   `  installFriends(); // [auth-fork]\n`);
 
+// ---- public/js/main.js: mount the player profile / card -------------------------------------------------------------
+hook('public/js/main.js',
+  `import { installFriends } from './chat/friends.js'; // [auth-fork]\n`,
+  `import { installProfile } from './chat/profile.js'; // [auth-fork]\n`);
+hook('public/js/main.js',
+  `  installFriends(); // [auth-fork]\n`,
+  `  installProfile(); // [auth-fork]\n`);
+
 // ---- public/js/screens/lobby.js: friends button right of 玩法说明 ----------------------------------------------------
 hook('public/js/screens/lobby.js',
   `import { GuideButton, openGuide } from '../ui/guide.js';\n`,
@@ -145,6 +153,14 @@ hook('public/js/screens/lobby.js',
 hook('public/js/screens/lobby.js',
   `          <\${GuideButton} class="lobby-guide" variant="secondary" square=\${true} />\n`,
   `          <\${FriendsButton} class="lobby-friends" variant="secondary" square=\${true} />\n`);
+
+// ---- public/js/screens/lobby.js: profile button right of 添加到桌面 --------------------------------------------------
+hook('public/js/screens/lobby.js',
+  `import { FriendsButton } from '../chat/friends.js'; // [auth-fork]\n`,
+  `import { ProfileButton } from '../chat/profile.js'; // [auth-fork]\n`);
+hook('public/js/screens/lobby.js',
+  `          <\${PwaInstallButton} class="lobby-pwa" square=\${true} />\n`,
+  `          <\${ProfileButton} class="lobby-profile" variant="secondary" square=\${true} />\n`);
 
 // ---- public/js/ui/settings.js: chat on/off switch in the plugin manager (界面插件) -----------------------------------
 hook('public/js/ui/settings.js',
@@ -163,7 +179,7 @@ const check = [...touched,
   'server/auth/ws.js', 'server/auth/session.js', 'public/js/auth/gate.js', 'public/login/login.js',
   'server/admin/index.js', 'server/admin/http.js',
   'server/chat/store.js', 'server/chat/chat.js', 'server/chat/index.js', 'server/chat/ws.js', 'public/js/chat/panel.js',
-  'public/js/chat/friends.js', 'public/js/chat/settings.js', 'public/js/chat/pref.js', 'public/js/auth/logout.js'];
+  'public/js/chat/friends.js', 'public/js/chat/settings.js', 'public/js/chat/pref.js', 'public/js/auth/logout.js', 'public/js/chat/profile.js'];
 let bad = 0;
 for (const rel of check) {
   const r = spawnSync(process.execPath, ['--check', join(ROOT, rel)], { encoding: 'utf8' });

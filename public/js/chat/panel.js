@@ -23,6 +23,8 @@ const CSS = `
 .sp-chat-line.new{animation:spFade .22s ease}
 .sp-chat-line .ch{color:var(--mint-400,#59f4ca);margin-right:6px;font-size:11.5px}
 .sp-chat-line .who{font-weight:600;color:var(--mint-400,#59f4ca)}
+.sp-chat-line .who.clickable{cursor:pointer}
+.sp-chat-line .who.clickable:hover{text-decoration:underline}
 .sp-chat-line .who.guest{color:#9aa7a1}
 .sp-chat-line.mine .who{color:var(--mint-500,#4ed8af)}
 .sp-chat-line.old{opacity:.5}
@@ -115,7 +117,13 @@ export function installChat({ net }) {
     const ch = m.channel === 'room' ? 'room' : (m.roomCode ? 'room' : 'world');
     const d = el('div', 'sp-chat-line' + (animate ? ' new' : '') + ((m.accountId === state.own || m.account_id === state.own) ? ' mine' : ''));
     d.append(el('span', 'ch', ch === 'room' ? '[房间]' : '[世界]'));
-    d.append(el('span', 'who' + (m.guest ? ' guest' : ''), m.name || m.fromName || '玩家'));
+    const who = el('span', 'who' + (m.guest ? ' guest' : ''), m.name || m.fromName || '玩家');
+    const aid = m.accountId ?? m.account_id;
+    if (aid && !m.guest) {   // [player-id] click a registered player's name → 名片
+      who.classList.add('clickable'); who.title = '查看玩家名片';
+      who.addEventListener('click', () => window.dispatchEvent(new CustomEvent('sp-player-card', { detail: { id: aid } })));
+    }
+    d.append(who);
     d.append(document.createTextNode(': ' + (m.body || '')));
     return d;
   }

@@ -59,7 +59,8 @@ export function createAuth({ dbPath, log, now = Date.now }) {
   }
 
   function publicAccount(row) {
-    return { id: row.id, username: row.username, role: row.role };
+    const name = row.display_name ?? row.username;
+    return { id: row.id, username: row.username, role: row.role, name, disc: row.discriminator ?? null, tag: row.discriminator != null ? `${name}#${row.discriminator}` : name };
   }
 
   return {
@@ -125,7 +126,8 @@ export function createAuth({ dbPath, log, now = Date.now }) {
       if (row.expires_at < now()) { store.revokeToken(row.token_hash); return { ok: false }; }
       if (row.kind === 'account') {
         if (!row.account_id || row.disabled) return { ok: false };
-        return { ok: true, kind: 'account', account: { id: row.account_id, username: row.username, role: row.role } };
+        const name = row.display_name ?? row.username;
+        return { ok: true, kind: 'account', account: { id: row.account_id, username: row.username, role: row.role, name, disc: row.discriminator ?? null, tag: row.discriminator != null ? `${name}#${row.discriminator}` : name } };
       }
       return { ok: true, kind: 'guest', name: row.name || '游客' };
     },

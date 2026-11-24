@@ -9,7 +9,7 @@ import { useState, useEffect, useRef } from '../../vendor/hooks.module.js';
 import { getToken } from '../auth/gate.js';
 
 const ERR = { need_account: '该功能需注册账号', bad_target: '目标无效', already_friends: '已经是好友', no_request: '没有该申请', not_friends: '对方不是你的好友', empty: '不能发空消息', rate_limited: '发言太快，稍等' };
-const fstore = createStore({ own: null, friends: [], requests: [], pmTarget: null, pmName: '', pm: [] });
+const fstore = createStore({ own: null, friends: [], requests: [], pmTarget: null, pmName: '', pm: [], open: false });
 const hhmm = (t) => new Date(t).toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit' });
 
 let toastEl = null, toastTimer = null;
@@ -22,6 +22,8 @@ function toast(text) {
 let wired = false;
 export function installFriends() {
   if (wired) return; wired = true;
+  // [player-id] a player名片's 私聊 button opens this window straight into the conversation.
+  window.addEventListener('sp-open-pm', (e) => { const d = e.detail || {}; if (d.id) { fstore.set({ open: true }); openPM(d.id, d.name); } });
   const refresh = () => { if (net.status === 'online') net.send('friend.list', {}); };
   net.on('welcome', (m) => { if (m.account?.id) fstore.set({ own: m.account.id }); refresh(); });
   net.on('status', () => { if (net.status === 'online') refresh(); });
@@ -59,9 +61,9 @@ function FriendsModal({ onClose }) {
   const listView = html`<div class="fr-list">
     ${!s.own ? html`<p class="fr-empty">游客不能加好友；注册后解锁。</p>` : html`
       <div class="fr-add"><input type="number" value=${aid} onInput=${(e) => setAid(e.target.value)} placeholder="输入对方账号 ID 加好友" /><${Button} size="sm" onClick=${() => { const v = Number(aid); if (v) { net.send('friend.request', { toId: v }); setAid(''); } }}>添加<//></div>
-      ${s.requests.length ? html`<div class="fr-sec">待处理申请</div>${s.requests.map((r) => html`<div key=${r.fromId} class="fr-row"><span class="fr-nm">${r.fromName || '账号' + r.fromId} (#${r.fromId})</span><${Button} size="sm" onClick=${() => net.send('friend.respond', { fromId: r.fromId, accept: true })}>同意<//><${Button} size="sm" variant="ghost" onClick=${() => net.send('friend.respond', { fromId: r.fromId, accept: false })}>拒绝<//></div>`)}` : null}
+      ${s.requests.length ? html`<div class="fr-sec">待处理申请</div>${s.requests.map((r) => html`<div key=${r.fromId} class="fr-row"><button class="fr-nm fr-link" onClick=${() => window.dispatchEvent(new CustomEvent('sp-player-card', { detail: { id: r.fromId } }))}>${r.fromName || '账号' + r.fromId}<span class="fr-tag">${r.fromTag ? '#' + r.fromTag.split('#')[1] : ' (#' + r.fromId + ')'}</span></button><${Button} size="sm" onClick=${() => net.send('friend.respond', { fromId: r.fromId, accept: true })}>同意<//><${Button} size="sm" variant="ghost" onClick=${() => net.send('friend.respond', { fromId: r.fromId, accept: false })}>拒绝<//></div>`)}` : null}
       <div class="fr-sec">好友（${s.friends.length}）</div>
-      ${!s.friends.length ? html`<p class="fr-empty">还没有好友</p>` : s.friends.map((f) => html`<div key=${f.accountId} class="fr-row"><i class=${'fr-dot' + (f.online ? ' on' : '')}></i><span class="fr-nm">${f.name || '账号' + f.accountId} (#${f.accountId})</span><${Button} size="sm" variant="ghost" onClick=${() => openPM(f.accountId, f.name)}>私聊<//><${Button} size="sm" variant="ghost" onClick=${() => { if (confirm('删除该好友？')) net.send('friend.remove', { otherId: f.accountId }); }}>删除<//></div>`)}
+      ${!s.friends.length ? html`<p class="fr-empty">还没有好友</p>` : s.friends.map((f) => html`<div key=${f.accountId} class="fr-row"><i class=${'fr-dot' + (f.online ? ' on' : '')}></i><button class="fr-nm fr-link" onClick=${() => window.dispatchEvent(new CustomEvent('sp-player-card', { detail: { id: f.accountId } }))}>${f.name || '账号' + f.accountId}<span class="fr-tag">${f.disc != null ? '#' + f.disc : ' (#' + f.accountId + ')'}</span></button><${Button} size="sm" variant="ghost" onClick=${() => openPM(f.accountId, f.name)}>私聊<//><${Button} size="sm" variant="ghost" onClick=${() => { if (confirm('删除该好友？')) net.send('friend.remove', { otherId: f.accountId }); }}>删除<//></div>`)}
     `}
   </div>`;
 
@@ -90,12 +92,15 @@ const FR_CSS = `
 .fr-line.mine b{color:var(--mint-500,#4ed8af)}
 .fr-t{color:var(--text-dim,#6e7681);font-size:.1rem;margin-left:.06rem}
 .fr-pm__input{display:flex;gap:.06rem}
+.fr-link{background:none;border:none;text-align:left;cursor:pointer;font-family:inherit}
+.fr-link:hover{color:var(--mint-400,#59f4ca)}
+.fr-tag{color:var(--mint-400,#59f4ca);font-size:.11rem;margin-left:.03rem}
 `;
 
 /** The lobby top-bar friends trigger — same size/colour as the 设置 button (its twin), right of 玩法说明. */
 export function FriendsButton({ class: cls, size = 'sm', variant = 'ghost', square = false }) {
-  const [open, setOpen] = useState(false);
+  const open = useStore((s) => s.open, Object.is, fstore);
   return html`<${Button} variant=${variant} size=${size} square=${square} icon="users" class=${`friends-btn ${cls || ''}`}
-      onClick=${() => setOpen(true)} title="好友" aria-label="好友" data-testid="friends-btn">${square ? null : '好友'}<//>
-    ${open ? html`<${FriendsModal} onClose=${() => setOpen(false)} />` : null}`;
+      onClick=${() => fstore.set({ open: true })} title="好友" aria-label="好友" data-testid="friends-btn">${square ? null : '好友'}<//>
+    ${open ? html`<${FriendsModal} onClose=${() => fstore.set({ open: false, pmTarget: null, pm: [] })} />` : null}`;
 }

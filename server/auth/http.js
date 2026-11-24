@@ -8,8 +8,18 @@ import { ROOT } from '../http/config.js';
 import { sendJson, sendError } from '../http/common.js';
 import { clientAddress } from '../net.js';
 import { getAuth } from './index.js';
+import { getChat } from '../chat/index.js';
 
 const MAX_BODY = 4096;
+const NAME_RE = /^[\w一-龥]{2,16}$/u;   // [player-id] display name: letters / digits / underscore / Chinese, 2–16
+
+/** [player-id] a public profile plus presence (online) and friend count, or null. */
+function playerView(id) {
+  const p = getAuth().store.profileOf(Number(id));
+  if (!p) return null;
+  const chat = getChat();
+  return { ...p, online: !!(chat && chat.onlineOf(p.id)), friendsCount: chat ? chat.store.friendIds(p.id).length : 0 };
+}
 
 /** Read a small JSON request body (rejects oversize / invalid). */
 function readBody(req) {
@@ -54,7 +64,7 @@ function serveLogin(res) {
 
 /** Does this path belong to the auth surface? */
 function handles(rawPath) {
-  return rawPath === '/login' || rawPath === '/login/' || rawPath.startsWith('/api/auth/');
+  return rawPath === '/login' || rawPath === '/login/' || rawPath.startsWith('/api/auth/') || rawPath.startsWith('/api/player/');
 }
 
 /**
@@ -80,6 +90,29 @@ async function handle(req, res, parts) {
     return true;
   }
 
+  // [player-id] public identity / search / profile / friends (GET). rename is POST below.
+  if (path === '/api/player/search') {
+    const q = parts.query ? new URLSearchParams(parts.query).get('q') || '' : '';
+    const results = auth.store.searchPlayers(q).map((p) => ({ ...p, online: !!(getChat() && getChat().onlineOf(p.id)) }));
+    sendJson(req, res, 200, { ok: true, results });
+    return true;
+  }
+  if (path === '/api/player/profile') {
+    const id = parts.query ? new URLSearchParams(parts.query).get('id') : '';
+    const p = playerView(id);
+    sendJson(req, res, p ? 200 : 404, p ? { ok: true, profile: p } : { ok: false, error: 'not_found' });
+    return true;
+  }
+  if (path === '/api/player/me' || path === '/api/player/friends') {
+    const v = auth.verifyToken(bearer(req, parts));
+    if (!v.ok || v.kind !== 'account') { sendJson(req, res, 401, { ok: false, error: 'need_account' }); return true; }
+    if (path === '/api/player/me') { sendJson(req, res, 200, { ok: true, profile: playerView(v.account.id) }); return true; }
+    const chat = getChat();
+    const friends = chat ? chat.store.friendIds(v.account.id).map((id) => playerView(id)).filter(Boolean) : [];
+    sendJson(req, res, 200, { ok: true, friends });
+    return true;
+  }
+
   if (req.method !== 'POST') { sendError(req, res, 405, 'Method not allowed'); return true; }
   const body = await readBody(req);
   if (!body || typeof body !== 'object') { sendJson(req, res, 400, { ok: false, error: 'bad_body' }); return true; }
@@ -101,6 +134,24 @@ async function handle(req, res, parts) {
   }
   if (path === '/api/auth/logout') {
     auth.logout(bearer(req, parts));
+    sendJson(req, res, 200, { ok: true });
+    return true;
+  }
+  if (path === '/api/player/rename') {
+    const v = auth.verifyToken(bearer(req, parts));
+    if (!v.ok || v.kind !== 'account') { sendJson(req, res, 401, { ok: false, error: 'need_account' }); return true; }
+    const name = String(body.name ?? '').trim();
+    if (!NAME_RE.test(name)) { sendJson(req, res, 400, { ok: false, error: 'bad_name' }); return true; }
+    const profile = auth.store.setDisplayName(v.account.id, name);
+    sendJson(req, res, 200, { ok: true, profile: { ...profile, online: true } });
+    return true;
+  }
+  if (path === '/api/player/delete') {
+    const v = auth.verifyToken(bearer(req, parts));
+    if (!v.ok || v.kind !== 'account') { sendJson(req, res, 401, { ok: false, error: 'need_account' }); return true; }
+    const chat = getChat();
+    if (chat) chat.store.purgeAccount(v.account.id);   // friendships / requests / PMs / chat lines
+    auth.store.deleteAccount(v.account.id);            // the account row + all its tokens
     sendJson(req, res, 200, { ok: true });
     return true;
   }

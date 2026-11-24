@@ -100,6 +100,14 @@ export function createChatStore({ dbPath, log }) {
       q.trimRoom.run(roomCode, roomCode, LOBBY_KEEP);
     },
     roomRecent(roomCode, limit = 50) { return q.roomRecent.all(roomCode, limit).reverse(); },
+    /** [player-id] erase an account's social footprint on self-deletion: friendships, requests, PMs and chat lines. */
+    purgeAccount(id) {
+      db.prepare('DELETE FROM friends WHERE a_id=? OR b_id=?').run(id, id);
+      db.prepare('DELETE FROM friend_requests WHERE from_id=? OR to_id=?').run(id, id);
+      db.prepare('DELETE FROM messages WHERE from_id=? OR to_id=?').run(id, id);
+      db.prepare('DELETE FROM lobby_chat WHERE account_id=?').run(id);
+      db.prepare('DELETE FROM room_chat WHERE account_id=?').run(id);
+    },
     close() { try { db.close(); } catch (e) { log?.error?.('[chat] store close', e); } },
   };
 }

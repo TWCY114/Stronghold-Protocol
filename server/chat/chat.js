@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT } from '../http/config.js';
 import { createChatStore } from './store.js';
+import { getAuth } from '../auth/index.js';
 
 const LOBBY_RATE = { max: 3, windowMs: 5000 };   // 3 lobby messages / 5 s / player
 const PM_RATE = { max: 10, windowMs: 5000 };
@@ -42,8 +43,12 @@ export function createChat({ dbPath, registry, log, now = Date.now }) {
   }
   function nameOf(accountId) {
     const s = onlineOf(accountId);
-    return s ? s.name : null;
+    if (s) return s.name;
+    const t = getAuth().store.tagOf(accountId);   // [player-id] offline players keep their display name
+    return t ? t.name : null;
   }
+  /** [player-id] persistent public tag {name, disc, tag} of an account (works offline). */
+  function tagOf(accountId) { return getAuth().store.tagOf(accountId); }
   function broadcast(msg) {
     for (const s of registry.byPlayerId.values()) if (s.connected) send(s, msg);
   }
@@ -107,11 +112,11 @@ export function createChat({ dbPath, registry, log, now = Date.now }) {
     },
     friendsList(session) {
       if (!session.accountId) return [];
-      return store.friendIds(session.accountId).map((id) => ({ accountId: id, name: nameOf(id), online: !!onlineOf(id) }));
+      return store.friendIds(session.accountId).map((id) => { const t = tagOf(id); return { accountId: id, name: t ? t.name : nameOf(id), disc: t ? t.disc : null, tag: t ? t.tag : null, online: !!onlineOf(id) }; });
     },
     pendingRequests(session) {
       if (!session.accountId) return [];
-      return store.pendingRequests(session.accountId).map((r) => ({ fromId: r.from_id, fromName: nameOf(r.from_id), at: r.created_at }));
+      return store.pendingRequests(session.accountId).map((r) => { const t = tagOf(r.from_id); return { fromId: r.from_id, fromName: t ? t.name : nameOf(r.from_id), fromTag: t ? t.tag : null, at: r.created_at }; });
     },
 
     sendPM(session, toId, rawBody) {
