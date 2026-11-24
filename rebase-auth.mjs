@@ -197,6 +197,14 @@ hook('public/js/ui/gameLogic/settings.js',
   `bondTimers: false, combatMetrics: false, prepDeployFold: true,`,
   `bondTimers: false, combatMetrics: true, prepDeployFold: true,`, { mode: 'replace' });
 
+// ---- public/css/screens/title.css: [auth-fork] keep the conn row (incl. fullscreen) on ONE line ---------------------
+hook('public/css/screens/title.css',
+  `.title-conn { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .1rem; row-gap: .06rem; min-height: .32rem; font-size: calc(.14 * var(--t)); color: var(--text-lo); }`,
+  `.title-conn { display: flex; flex-wrap: nowrap; align-items: center; justify-content: center; gap: .06rem; min-height: .32rem; font-size: calc(.12 * var(--t)); color: var(--text-lo); }`, { mode: 'replace' });
+hook('public/css/screens/title.css',
+  `.title-conn .ping { height: max(.26rem, 1.6em); font-size: calc(.15 * var(--t)); }`,
+  `.title-conn .ping { height: max(.26rem, 1.6em); font-size: calc(.13 * var(--t)); }`, { mode: 'replace' });
+
 // ---- public/js/screens/room.js: [friend-invite] 邀请 opens the online-friends picker --------------------------------
 hook('public/js/screens/room.js',
   `import { difficultyInfo, modeInfo, ProtocolSelect } from './lobby.js';\n`,

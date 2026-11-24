@@ -41,6 +41,9 @@ const CSS = `
 .sp-chat-input:focus{border-color:var(--mint-500,#4ed8af)}
 .sp-chat-send{padding:7px 16px;font-size:12.5px;font-weight:600;color:#04140f;background:var(--mint-500,#4ed8af);border:none;border-radius:7px;cursor:pointer}
 .sp-chat-send:hover{background:var(--mint-400,#59f4ca)}
+.sp-chat-join{margin-left:6px;padding:1px 8px;font-size:11px;font-weight:600;color:#04140f;background:var(--mint-500,#4ed8af);border:none;border-radius:5px;cursor:pointer;vertical-align:baseline}
+.sp-chat-join:hover{background:var(--mint-400,#59f4ca)}
+.sp-chat-join:disabled{opacity:.5;cursor:wait}
 .sp-chat-resize{position:absolute;right:0;bottom:0;width:14px;height:14px;cursor:nwse-resize;background:var(--mint-500,#4ed8af);opacity:.45;clip-path:polygon(100% 0,100% 100%,0 100%);display:none}
 .sp-chat.is-open .sp-chat-resize{display:block}
 .sp-chat-resize:hover{opacity:.8}
@@ -125,6 +128,18 @@ export function installChat({ net }) {
     }
     d.append(who);
     d.append(document.createTextNode(': ' + (m.body || '')));
+    // [friend-invite] a room invite link in the message gets a one-click 加入房间 button (world lobby broadcast).
+    const mm = (m.body || '').match(/[?&]room=([A-Za-z0-9_-]{4,12})/);
+    if (mm) {
+      const join = el('button', 'sp-chat-join', '加入房间');
+      join.onclick = async () => {
+        join.disabled = true;
+        try { const { joinKnown } = await import('../screens/lobby.js'); await joinKnown('room.join', mm[1]); }
+        catch { toast('加入房间失败'); }
+        join.disabled = false;
+      };
+      d.append(join);
+    }
     return d;
   }
   function markOld() {
@@ -221,7 +236,8 @@ export function installChat({ net }) {
   });
   net.on('chat.history', (m) => {
     const ch = m.channel === 'room' ? 'room' : 'world';
-    const hist = m.messages || [], cur = state.msg[ch] || [], seen = new Set(), merged = [];
+    // [auth-fork] history rows carry no channel field; tag them so a room replay keeps its [房间] prefix after tab switches.
+    const hist = (m.messages || []).map((x) => ({ ...x, channel: ch })), cur = state.msg[ch] || [], seen = new Set(), merged = [];
     for (const x of [...hist, ...cur]) { const k = (x.at || x.created_at) + '|' + (x.name || '') + '|' + (x.body || ''); if (!seen.has(k)) { seen.add(k); merged.push(x); } }
     merged.sort((a, b) => (a.at || a.created_at) - (b.at || b.created_at));
     state.msg[ch] = merged.slice(-120);

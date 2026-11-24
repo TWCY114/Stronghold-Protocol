@@ -88,6 +88,7 @@ function FriendsModal({ onClose }) {
 }
 
 const FR_CSS = `
+.fr-modal{z-index:9670}
 .fr-modal .fr-list,.fr-modal .fr-pm{display:flex;flex-direction:column;gap:.08rem}
 .fr-empty{color:var(--text-dim,#8b949e);font-size:.13rem;margin:.04rem 0}
 .fr-sec{font-size:.11rem;color:var(--text-dim,#8b949e);margin:.06rem 0 .02rem}
@@ -128,6 +129,13 @@ function InvitePickerModal({ onClose }) {
     const ok = await copyText(what === 'code' ? code : inviteLink(code));
     toast(ok ? (what === 'code' ? `已复制同盟密钥 ${code}` : '已复制邀请链接') : '复制失败，请手动复制');
   };
+  // [friend-invite] broadcast a clickable join link to the world lobby so anyone there can one-click join.
+  const broadcast = async () => {
+    const code = s.inviteRoom; if (!code) return;
+    const { inviteLink } = await import('../screens/room.js');
+    net.send('chat.send', { body: `邀请加入同盟 ${code}：${inviteLink(code)}`, channel: 'world' });
+    toast('邀请链接已发送到大厅');
+  };
   return html`<${Modal} open=${true} onClose=${onClose} title="邀请好友" micro="INVITE" width="4.2rem" class="fr-modal">
     <style>${FR_CSS}</style>
     <div class="fr-list">
@@ -135,7 +143,7 @@ function InvitePickerModal({ onClose }) {
         <div class="fr-sec">在线好友（${online.length}）</div>
         ${!online.length ? html`<p class="fr-empty">暂无在线好友</p>` : online.map((f) => html`<div key=${f.accountId} class="fr-row"><i class="fr-dot on"></i><span class="fr-nm">${f.name || '账号' + f.accountId}<span class="fr-tag">${f.disc != null ? '#' + f.disc : ' (#' + f.accountId + ')'}</span></span><${Button} size="sm" onClick=${() => invite(f)}>邀请<//></div>`)}
         <div class="fr-sec">或分享邀请</div>
-        <div class="fr-add"><${Button} size="sm" variant="ghost" onClick=${() => copy('code')}>复制密钥<//><${Button} size="sm" variant="ghost" onClick=${() => copy('link')}>复制链接<//></div>
+        <div class="fr-add"><${Button} size="sm" variant="ghost" onClick=${() => copy('code')}>复制密钥<//><${Button} size="sm" variant="ghost" onClick=${() => copy('link')}>复制链接<//><${Button} size="sm" onClick=${broadcast}>发送到大厅<//></div>
       `}
     </div>
   <//>`;
