@@ -63,6 +63,24 @@ function FriendsModal({ onClose }) {
   const listRef = useRef(null);
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, [s.pm, s.pmTarget]);
   const sendPM = () => { const v = draft.trim(); if (!v || !s.pmTarget) return; net.send('pm.send', { toId: s.pmTarget, body: v }); setDraft(''); };
+  // [friend-search] the add box accepts a numeric account ID OR a display name / name#disc; names resolve via /api/player/search.
+  const [hits, setHits] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const sendReq = (id) => { net.send('friend.request', { toId: id }); setAid(''); setHits(null); };
+  const addFriend = async () => {
+    const q = aid.trim(); if (!q) return toast('输入对方编号或名字');
+    if (/^\d+$/.test(q)) return sendReq(Number(q));
+    setBusy(true);
+    try {
+      const t = getToken();
+      const r = await (await fetch('/api/player/search?q=' + encodeURIComponent(q), { headers: t ? { Authorization: `Bearer ${t}` } : {} })).json();
+      const list = (r.results || []).filter((p) => p.id !== s.own);
+      if (!list.length) toast('未找到该名字的玩家');
+      else if (list.length === 1) sendReq(list[0].id);
+      else setHits(list);
+    } catch { toast('搜索失败，稍后再试'); }
+    setBusy(false);
+  };
 
   const pmView = html`<div class="fr-pm">
     <div class="fr-pm__head"><button class="fr-back" onClick=${() => fstore.set({ pmTarget: null, pm: [] })}>← 返回</button><span>私聊 · ${s.pmName || '账号' + s.pmTarget}</span></div>
@@ -74,7 +92,8 @@ function FriendsModal({ onClose }) {
 
   const listView = html`<div class="fr-list">
     ${!s.own ? html`<p class="fr-empty">游客不能加好友；注册后解锁。</p>` : html`
-      <div class="fr-add"><input type="text" inputMode="numeric" value=${aid} onInput=${(e) => setAid(e.target.value)} onWheel=${(e) => e.currentTarget.blur()} placeholder="输入对方账号 ID 加好友" /><${Button} size="sm" onClick=${() => { const v = Number(aid); if (v) { net.send('friend.request', { toId: v }); setAid(''); } else toast('请输入对方的数字账号 ID'); }}>添加<//></div>
+      <div class="fr-add"><input type="text" value=${aid} onInput=${(e) => { setAid(e.target.value); setHits(null); }} onWheel=${(e) => e.currentTarget.blur()} onKeyDown=${(e) => { if (e.key === 'Enter') addFriend(); }} placeholder="输入对方编号或名字加好友" /><${Button} size="sm" onClick=${addFriend}>${busy ? '搜索中' : '添加'}<//></div>
+      ${hits && hits.length ? html`<div class="fr-sec">搜索结果（${hits.length}）· 点击添加</div>${hits.map((p) => html`<div key=${p.id} class="fr-row"><i class=${'fr-dot' + (p.online ? ' on' : '')}></i><span class="fr-nm">${p.name}<span class="fr-tag">#${p.disc}</span></span><${Button} size="sm" onClick=${() => sendReq(p.id)}>添加<//></div>`)}` : null}
       ${s.requests.length ? html`<div class="fr-sec">待处理申请</div>${s.requests.map((r) => html`<div key=${r.fromId} class="fr-row"><button class="fr-nm fr-link" onClick=${() => window.dispatchEvent(new CustomEvent('sp-player-card', { detail: { id: r.fromId } }))}>${r.fromName || '账号' + r.fromId}<span class="fr-tag">${r.fromTag ? '#' + r.fromTag.split('#')[1] : ' (#' + r.fromId + ')'}</span></button><${Button} size="sm" onClick=${() => net.send('friend.respond', { fromId: r.fromId, accept: true })}>同意<//><${Button} size="sm" variant="ghost" onClick=${() => net.send('friend.respond', { fromId: r.fromId, accept: false })}>拒绝<//></div>`)}` : null}
       <div class="fr-sec">好友（${s.friends.length}）</div>
       ${!s.friends.length ? html`<p class="fr-empty">还没有好友</p>` : s.friends.map((f) => html`<div key=${f.accountId} class="fr-row"><i class=${'fr-dot' + (f.online ? ' on' : '')}></i><button class="fr-nm fr-link" onClick=${() => window.dispatchEvent(new CustomEvent('sp-player-card', { detail: { id: f.accountId } }))}>${f.name || '账号' + f.accountId}<span class="fr-tag">${f.disc != null ? '#' + f.disc : ' (#' + f.accountId + ')'}</span></button><${Button} size="sm" variant="ghost" onClick=${() => openPM(f.accountId, f.name)}>私聊<//><${Button} size="sm" variant="ghost" onClick=${() => { if (confirm('删除该好友？')) net.send('friend.remove', { otherId: f.accountId }); }}>删除<//></div>`)}

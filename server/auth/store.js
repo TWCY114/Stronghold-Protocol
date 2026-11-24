@@ -81,6 +81,7 @@ export function createAuthStore({ dbPath, log }) {
     insAccount: db.prepare('INSERT INTO accounts(username, pass_hash, role, created_at, display_name, discriminator) VALUES(?,?,?,?,?,?)'),
     byNameDisc: db.prepare('SELECT * FROM accounts WHERE display_name = ? AND discriminator = ?'),
     byDisplayName: db.prepare('SELECT id, display_name, discriminator, role, created_at FROM accounts WHERE display_name = ? ORDER BY id LIMIT 50'),
+    byDisplayNameLike: db.prepare('SELECT id, display_name, discriminator, role, created_at FROM accounts WHERE display_name LIKE ? ESCAPE \'\\\' ORDER BY id LIMIT 50'),
     setTag: db.prepare('UPDATE accounts SET display_name = ?, discriminator = ? WHERE id = ?'),
     tagById: db.prepare('SELECT display_name, discriminator FROM accounts WHERE id = ?'),
     byName: db.prepare('SELECT * FROM accounts WHERE username = ?'),
@@ -142,7 +143,12 @@ export function createAuthStore({ dbPath, log }) {
       if (!s) return [];
       const m = s.match(/^(.*)#(\d{1,4})$/);
       if (m) { const r = q.byNameDisc.get(m[1].trim(), Number(m[2])); return r ? [this.profileOf(r.id)] : []; }
-      return q.byDisplayName.all(s).map((r) => ({ id: r.id, name: r.display_name, disc: r.discriminator, tag: `${r.display_name}#${r.discriminator}`, role: r.role, createdAt: r.created_at }));
+      const row = (r) => ({ id: r.id, name: r.display_name, disc: r.discriminator, tag: `${r.display_name}#${r.discriminator}`, role: r.role, createdAt: r.created_at });
+      const exact = q.byDisplayName.all(s).map(row);
+      if (exact.length) return exact;
+      // [friend-search] no exact hit: fall back to a substring match so partial names still find people.
+      const like = '%' + s.replace(/[\\%_]/g, (c) => '\\' + c) + '%';
+      return q.byDisplayNameLike.all(like).map(row);
     },
     /** [player-id] rename: change display_name only; the permanent unique discriminator is kept. */
     setDisplayName(id, name) {
