@@ -55,7 +55,14 @@ hook('server/http/websocket.js',
 // ---- server/net.js: carry the principal into the session + welcome --------------------------------------------------
 hook('server/net.js',
   `import { ERR, ERR_TEXT, NAME_MAX_LEN, PROTOCOL_VERSION } from '../shared/constants.js';\n`,
-  `import { bindHello, welcomeExtra } from './auth/session.js'; // [auth-fork]\n`);
+  `import { bindHello, welcomeExtra, setRenameBroadcaster } from './auth/session.js'; // [auth-fork]\n`);
+// [name-sync] a profile rename re-runs the hello resync path so the room broadcasts the new seat name.
+hook('server/net.js',
+  `    this.handler = handler;\n    this.log = log;\n    this.now = now;\n`,
+  `    this.handler = handler;\n    this.log = log;\n    this.now = now;\n`
+  + `    // [auth-fork] name-sync: a profile rename re-runs the hello resync path so the room broadcasts the new seat name.\n`
+  + `    setRenameBroadcaster((s) => { try { this.handler.onHello?.(s, { resumed: true, repeat: true }); } catch (e) { this.log.error('[net] rename broadcast', e); } });\n`,
+  { mode: 'replace' });
 hook('server/net.js',
   `    const conn = new Connection(ws, clientAddress(req, this.opts.trustProxy), this.now(), this.opts);\n`,
   `    conn.spAccount = req.spAccount || null; // [auth-fork]\n`);
@@ -101,7 +108,7 @@ hook('server/http/routes.js',
 
 // ---- server/net.js: intercept chat/friend frames before the game's C2S validation -----------------------------------
 hook('server/net.js',
-  `import { bindHello, welcomeExtra } from './auth/session.js'; // [auth-fork]\n`,
+  `import { bindHello, welcomeExtra, setRenameBroadcaster } from './auth/session.js'; // [auth-fork]\n`,
   `import { handleChat } from './chat/ws.js'; // [auth-fork]\n`);
 hook('server/net.js',
   `    const rid = msg && typeof msg === 'object' ? msg.rid : undefined;\n`,
@@ -205,6 +212,15 @@ hook('public/css/screens/title.css',
   `.title-conn .ping { height: max(.26rem, 1.6em); font-size: calc(.15 * var(--t)); }`,
   `.title-conn .ping { height: max(.26rem, 1.6em); font-size: calc(.13 * var(--t)); }`, { mode: 'replace' });
 
+// ---- public/js/ui/components.js: [chat-focus] keep the lobby chat usable while a modal is open ----------------------
+hook('public/js/ui/components.js',
+  `    const onFocus = (e) => {\n      if (topmost() && !box.contains(e.target)) focusFirst();\n    };`,
+  `    const onFocus = (e) => {\n`
+  + `      // [chat-focus] the persistent lobby chat (.sp-chat) stays usable while a modal (e.g. 个人主页) is open: never\n`
+  + `      // steal focus back from it, otherwise its input can never be typed into.\n`
+  + `      if (topmost() && !box.contains(e.target) && !(e.target.closest && e.target.closest('.sp-chat'))) focusFirst();\n    };`,
+  { mode: 'replace' });
+
 // ---- public/js/screens/room.js: [friend-invite] 邀请 opens the online-friends picker --------------------------------
 hook('public/js/screens/room.js',
   `import { difficultyInfo, modeInfo, ProtocolSelect } from './lobby.js';\n`,
@@ -239,6 +255,7 @@ const check = [...touched,
   'public/js/chat/friends.js', 'public/js/chat/settings.js', 'public/js/chat/pref.js', 'public/js/auth/logout.js', 'public/js/chat/profile.js',
   'server/auth/mailer.js', 'public/js/auth/fingerprint.js', 'public/js/auth/convert.js', 'public/login/login.js',
   'server/admin/matchEdit.js', 'server/match/Match.js', 'server/match/host/proxy.js', 'public/js/screens/room.js',
+  'server/net.js', 'public/js/ui/components.js',
   '_test-creds.mjs', 'test-admin.mjs', 'test-admin-api.mjs', 'test-admin-e2e.mjs', 'test-admin-match.mjs',
   'shot-admin.mjs', 'test-auth.mjs', 'test-chat.mjs', 'test-token-auth.mjs', 'test-account-plus.mjs'];
 let bad = 0;

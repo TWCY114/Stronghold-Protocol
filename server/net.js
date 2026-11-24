@@ -45,7 +45,7 @@ import { randomBytes } from 'node:crypto';
 import { isIP } from 'node:net';
 import { C2S, validateC2S } from '../shared/protocol.js';
 import { ERR, ERR_TEXT, NAME_MAX_LEN, PROTOCOL_VERSION } from '../shared/constants.js';
-import { bindHello, welcomeExtra } from './auth/session.js'; // [auth-fork]
+import { bindHello, welcomeExtra, setRenameBroadcaster } from './auth/session.js'; // [auth-fork]
 import { handleChat } from './chat/ws.js'; // [auth-fork]
 
 /** Tunables (all overridable through the Network / SessionRegistry constructors). */
@@ -551,6 +551,8 @@ export class Network {
     this.handler = handler;
     this.log = log;
     this.now = now;
+    // [auth-fork] name-sync: a profile rename re-runs the hello resync path so the room broadcasts the new seat name.
+    setRenameBroadcaster((s) => { try { this.handler.onHello?.(s, { resumed: true, repeat: true }); } catch (e) { this.log.error('[net] rename broadcast', e); } });
     this.opts = { ...NET_DEFAULTS, ...options };
     /** @type {Map<import('ws').WebSocket, Connection>} */
     this.conns = new Map();

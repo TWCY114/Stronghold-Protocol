@@ -8,6 +8,7 @@ import { html, Button, Modal, Icon } from '../ui/components.js';
 import { render } from '../../vendor/preact.module.js';
 import { useState, useEffect, useRef } from '../../vendor/hooks.module.js';
 import { getToken } from '../auth/gate.js';
+import { openCard } from './profile.js';
 
 const ERR = { need_account: '该功能需注册账号', bad_target: '目标无效', already_friends: '已经是好友', no_request: '没有该申请', not_friends: '对方不是你的好友', empty: '不能发空消息', rate_limited: '发言太快，稍等', not_online: '对方不在线', no_room: '你不在同盟中' };
 const fstore = createStore({ own: null, friends: [], requests: [], pmTarget: null, pmName: '', pm: [], open: false, invitePicker: false, inviteRoom: null });
@@ -63,21 +64,20 @@ function FriendsModal({ onClose }) {
   const listRef = useRef(null);
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, [s.pm, s.pmTarget]);
   const sendPM = () => { const v = draft.trim(); if (!v || !s.pmTarget) return; net.send('pm.send', { toId: s.pmTarget, body: v }); setDraft(''); };
-  // [friend-search] the add box accepts a numeric account ID OR a display name / name#disc; names resolve via /api/player/search.
+  // [friend-search] search-first, mirroring 个人主页: type a name / name#disc (or a numeric ID) → result list → open the
+  // player's 名片 and choose 加好友 there. A numeric ID jumps straight to that player's card.
   const [hits, setHits] = useState(null);
   const [busy, setBusy] = useState(false);
-  const sendReq = (id) => { net.send('friend.request', { toId: id }); setAid(''); setHits(null); };
-  const addFriend = async () => {
+  const searchPlayers = async () => {
     const q = aid.trim(); if (!q) return toast('输入对方编号或名字');
-    if (/^\d+$/.test(q)) return sendReq(Number(q));
+    if (/^\d+$/.test(q)) { setHits(null); openCard(Number(q)); return; }
     setBusy(true);
     try {
       const t = getToken();
       const r = await (await fetch('/api/player/search?q=' + encodeURIComponent(q), { headers: t ? { Authorization: `Bearer ${t}` } : {} })).json();
       const list = (r.results || []).filter((p) => p.id !== s.own);
+      setHits(list);
       if (!list.length) toast('未找到该名字的玩家');
-      else if (list.length === 1) sendReq(list[0].id);
-      else setHits(list);
     } catch { toast('搜索失败，稍后再试'); }
     setBusy(false);
   };
@@ -92,8 +92,8 @@ function FriendsModal({ onClose }) {
 
   const listView = html`<div class="fr-list">
     ${!s.own ? html`<p class="fr-empty">游客不能加好友；注册后解锁。</p>` : html`
-      <div class="fr-add"><input type="text" value=${aid} onInput=${(e) => { setAid(e.target.value); setHits(null); }} onWheel=${(e) => e.currentTarget.blur()} onKeyDown=${(e) => { if (e.key === 'Enter') addFriend(); }} placeholder="输入对方编号或名字加好友" /><${Button} size="sm" onClick=${addFriend}>${busy ? '搜索中' : '添加'}<//></div>
-      ${hits && hits.length ? html`<div class="fr-sec">搜索结果（${hits.length}）· 点击添加</div>${hits.map((p) => html`<div key=${p.id} class="fr-row"><i class=${'fr-dot' + (p.online ? ' on' : '')}></i><span class="fr-nm">${p.name}<span class="fr-tag">#${p.disc}</span></span><${Button} size="sm" onClick=${() => sendReq(p.id)}>添加<//></div>`)}` : null}
+      <div class="fr-add"><input type="text" value=${aid} onInput=${(e) => { setAid(e.target.value); setHits(null); }} onWheel=${(e) => e.currentTarget.blur()} onKeyDown=${(e) => { if (e.key === 'Enter') searchPlayers(); }} placeholder="搜索玩家：名字#编号 或 名字" /><${Button} size="sm" onClick=${searchPlayers}>${busy ? '搜索中' : '搜索'}<//></div>
+      ${hits && hits.length ? html`<div class="fr-sec">搜索结果（${hits.length}）· 打开名片加好友</div>${hits.map((p) => html`<div key=${p.id} class="fr-row"><i class=${'fr-dot' + (p.online ? ' on' : '')}></i><button class="fr-nm fr-link" onClick=${() => openCard(p.id)}>${p.name}<span class="fr-tag">#${p.disc}</span></button><span class="fr-tag">ID ${p.id}</span><${Button} size="sm" variant="ghost" onClick=${() => openCard(p.id)}>名片<//></div>`)}` : null}
       ${s.requests.length ? html`<div class="fr-sec">待处理申请</div>${s.requests.map((r) => html`<div key=${r.fromId} class="fr-row"><button class="fr-nm fr-link" onClick=${() => window.dispatchEvent(new CustomEvent('sp-player-card', { detail: { id: r.fromId } }))}>${r.fromName || '账号' + r.fromId}<span class="fr-tag">${r.fromTag ? '#' + r.fromTag.split('#')[1] : ' (#' + r.fromId + ')'}</span></button><${Button} size="sm" onClick=${() => net.send('friend.respond', { fromId: r.fromId, accept: true })}>同意<//><${Button} size="sm" variant="ghost" onClick=${() => net.send('friend.respond', { fromId: r.fromId, accept: false })}>拒绝<//></div>`)}` : null}
       <div class="fr-sec">好友（${s.friends.length}）</div>
       ${!s.friends.length ? html`<p class="fr-empty">还没有好友</p>` : s.friends.map((f) => html`<div key=${f.accountId} class="fr-row"><i class=${'fr-dot' + (f.online ? ' on' : '')}></i><button class="fr-nm fr-link" onClick=${() => window.dispatchEvent(new CustomEvent('sp-player-card', { detail: { id: f.accountId } }))}>${f.name || '账号' + f.accountId}<span class="fr-tag">${f.disc != null ? '#' + f.disc : ' (#' + f.accountId + ')'}</span></button><${Button} size="sm" variant="ghost" onClick=${() => openPM(f.accountId, f.name)}>私聊<//><${Button} size="sm" variant="ghost" onClick=${() => { if (confirm('删除该好友？')) net.send('friend.remove', { otherId: f.accountId }); }}>删除<//></div>`)}

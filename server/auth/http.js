@@ -9,6 +9,7 @@ import { sendJson, sendError } from '../http/common.js';
 import { clientAddress } from '../net.js';
 import { getAuth } from './index.js';
 import { getChat } from '../chat/index.js';
+import { applyRename } from './session.js';
 
 const MAX_BODY = 4096;
 const NAME_RE = /^[\w一-龥]{2,16}$/u;   // [player-id] display name: letters / digits / underscore / Chinese, 2–16
@@ -100,6 +101,15 @@ async function handle(req, res, parts) {
   if (path === '/api/player/profile') {
     const id = parts.query ? new URLSearchParams(parts.query).get('id') : '';
     const p = playerView(id);
+    if (p) {
+      // [friend-gate] tell the caller whether this player is already a friend / is themselves, so the 名片 can grey out
+      // 私聊 for non-friends and label 加好友 as 已是好友.
+      const v = auth.verifyToken(bearer(req, parts));
+      const chat = getChat();
+      const mine = v.ok && v.kind === 'account' ? v.account.id : null;
+      p.isSelf = mine === p.id;
+      p.isFriend = !!(mine && chat && chat.store.areFriends(mine, p.id));
+    }
     sendJson(req, res, p ? 200 : 404, p ? { ok: true, profile: p } : { ok: false, error: 'not_found' });
     return true;
   }
@@ -162,6 +172,7 @@ async function handle(req, res, parts) {
     const name = String(body.name ?? '').trim();
     if (!NAME_RE.test(name)) { sendJson(req, res, 400, { ok: false, error: 'bad_name' }); return true; }
     const profile = auth.store.setDisplayName(v.account.id, name);
+    applyRename(v.account.id, name);   // [name-sync] push the new play name to the live session + room broadcast
     sendJson(req, res, 200, { ok: true, profile: { ...profile, online: true } });
     return true;
   }

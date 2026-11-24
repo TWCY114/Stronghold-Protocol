@@ -434,7 +434,9 @@ export function useModalFocus(open, onClose, boxRef) {
       }
     };
     const onFocus = (e) => {
-      if (topmost() && !box.contains(e.target)) focusFirst();
+      // [chat-focus] the persistent lobby chat (.sp-chat) stays usable while a modal (e.g. 个人主页) is open: never
+      // steal focus back from it, otherwise its input can never be typed into.
+      if (topmost() && !box.contains(e.target) && !(e.target.closest && e.target.closest('.sp-chat'))) focusFirst();
     };
     window.addEventListener('keydown', onKey);
     window.addEventListener('focusin', onFocus);

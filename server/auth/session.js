@@ -4,6 +4,7 @@
 // account token only gates the upgrade and identifies who this session belongs to.
 
 import { getChat } from '../chat/index.js';
+import { getAuth } from './index.js';
 
 // One active session per registered account (同个账号只能登陆一次): a new hello for an account closes the previous
 // connection with 4001 (CLOSE.REPLACED — the client stops reconnecting and shows "该身份已在其他页面登录"). Guests
@@ -30,6 +31,11 @@ export function bindHello(conn, session) {
     session.accountId = p.account.id;
     session.username = p.account.username;
     session.role = p.account.role;
+    // [name-sync] the in-game name IS the public profile name (display_name). The login username never becomes the
+    // play name; whatever nickname the client sent in `hello` is overridden by the account's current display_name so
+    // lobby / room / chat / friends and the 个人主页 always agree.
+    const tag = getAuth().store.tagOf(session.accountId);
+    if (tag && tag.name) session.name = tag.name;
     enforceSingleSession(conn, session.accountId);
   } else if (p && p.kind === 'guest') {
     session.accountId = null;
@@ -45,4 +51,18 @@ export function welcomeExtra(session) {
   if (session.accountId) return { account: { id: session.accountId, username: session.username, role: session.role } };
   if (session.role === 'guest') return { account: null, guest: true, guestName: session.guestName };
   return null;
+}
+
+// [name-sync] live rename propagation: the profile rename handler calls applyRename once the store is updated; the
+// live session's play name changes and the registered broadcaster (net.js wires it to lobby.onHello) re-broadcasts the
+// room so every seat / spectator header picks up the new name immediately. Offline accounts simply return false.
+let renameBroadcaster = null;
+export function setRenameBroadcaster(fn) { renameBroadcaster = fn; }
+export function applyRename(accountId, name) {
+  const conn = accountSessions.get(accountId);
+  const session = conn && conn.session;
+  if (!session || !name) return false;
+  session.name = name;
+  try { renameBroadcaster && renameBroadcaster(session); } catch { /* ignore */ }
+  return true;
 }

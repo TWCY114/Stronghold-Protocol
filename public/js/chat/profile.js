@@ -70,6 +70,9 @@ function PlayerCard() {
   const close = () => pstore.set({ card: null });
   const addFriend = () => { net.send('friend.request', { toId: card.id }); toast('好友请求已发送'); };
   const pm = () => { window.dispatchEvent(new CustomEvent('sp-open-pm', { detail: { id: card.id, name: card.name } })); close(); };
+  // [friend-gate] 私聊 is friends-only: for a non-friend the button is greyed, hover explains why, and clicking raises
+  // the explicit error instead of opening a private chat.
+  const pmBlocked = () => toast('错误：你与对方还不是好友');
   return html`<${Modal} open=${true} onClose=${close} title="玩家名片" micro="PLAYER CARD" width="3.1rem" class="df-card">
     <style>${CARD_CSS}</style>
     <div class="df-card__body">
@@ -86,8 +89,10 @@ function PlayerCard() {
         <div class="df-stat"><b>${card.role === 'admin' ? '管理' : '玩家'}</b><span>身份</span></div>
       </div>
       ${isSelf ? html`<p class="df-self">这是你自己的名片</p>` : html`<div class="df-actions">
-        <${Button} size="sm" onClick=${addFriend}>加好友<//>
-        <${Button} size="sm" variant="secondary" onClick=${pm}>私聊<//>
+        <${Button} size="sm" onClick=${addFriend} disabled=${!!card.isFriend}>${card.isFriend ? '已是好友' : '加好友'}<//>
+        ${card.isFriend
+          ? html`<${Button} size="sm" variant="secondary" onClick=${pm}>私聊<//>`
+          : html`<${Button} size="sm" variant="secondary" class="df-pm-off" onClick=${pmBlocked} title="你与对方还不是好友" aria-disabled="true">私聊<//>`}
       </div>`}
     </div>
   <//>`;
@@ -279,5 +284,7 @@ const CARD_CSS = `
 .df-stat span{font-size:.1rem;color:var(--text-dim,#8b949e)}
 .df-actions{display:flex;gap:.07rem}
 .df-actions .btn{flex:1}
+.df-pm-off.btn{background:var(--bg-1,#141816);border-color:var(--line,#2f3a35);color:var(--text-dim,#6e7681);cursor:not-allowed;opacity:.75}
+.df-pm-off.btn:hover{background:var(--bg-1,#141816);border-color:var(--line,#2f3a35);color:var(--text-dim,#6e7681);box-shadow:none}
 .df-self{font-size:.12rem;color:var(--text-dim,#8b949e);text-align:center;margin:0}
 `;
