@@ -1,5 +1,8 @@
 # 卫戍协议：盟约 · Stronghold Protocol: Alliance
 
+> [!NOTE]
+> **本仓库是 [TWCY114](https://github.com/TWCY114) 的二次分发 fork**，基于原作者 [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol)（GPL-3.0），在官方 0.4.0 之上加入**登录 / 管理后台 / 聊天好友私聊**（详见 [FORK-README.md](FORK-README.md)）。主体为新增文件，官方文件仅最小钩子（`rebase-auth.mjs` 幂等重放）。本修改版同样以 GPL-3.0 分发，原项目版权归原作者。下方声明同样适用于本 fork。
+
 《明日方舟》季节性自走棋塔防玩法「卫戍协议：盟约」的**非官方同人复刻**：浏览器即开即玩，单人或 1–4 人联机合作。
 
 ![version](https://img.shields.io/badge/version-0.4.0-2ea44f)
@@ -12,17 +15,11 @@
 > - 本项目是玩家自制的**非官方同人作品**，与上海鹰角网络科技有限公司（Hypergryph）、Yostar 及其关联方**没有任何关系**，未获其授权或认可。
 > - 《明日方舟》及「卫戍协议」相关的名称、角色、美术、音乐、音效、文本与数据等素材，版权归原权利人所有。这些素材**不适用**本项目的 GPL-3.0 许可证；GPL 只覆盖本项目自己编写的代码。
 > - 仅供学习交流与个人非商业使用。**严禁任何形式的盈利**，包括但不限于：售卖本项目或整合包、付费下载或付费分发、收费服务器或收费代开、广告 / 打赏 / 会员等变现方式，以及其他任何商业用途。
-> - 仓库源码不包含游戏的美术与音频素材（只有由官方数据表生成的数据和几张游戏截图，同样不适用 GPL）；[Releases](../../releases/latest) 中的完整包为了方便玩家附带了素材（精简包不带，首次启动时从公开镜像下载），下载即视为同意本声明。请勿将素材用于本项目以外的用途或单独再分发。完整条款见 [NOTICE.md](NOTICE.md)。
+> - 仓库源码不包含游戏的美术与音频素材（只有由官方数据表生成的数据，同样不适用 GPL）；[Releases](../../releases/latest) 中的完整包为了方便玩家附带了素材（精简包不带，首次启动时从公开镜像下载），下载即视为同意本声明。请勿将素材用于本项目以外的用途或单独再分发。完整条款见 [NOTICE.md](NOTICE.md)。
 > - 权利人如认为本项目侵犯其权益，请通过 Issue 联系，我们会**立即删除**相关内容。
 > - 本项目按「现状」提供，**不提供任何担保**，使用风险自负。
 
 English summary: [below](#english).
-
-| 同盟房间 | 策略轮选 | 休整期（商店 / 盟约） |
-|---|---|---|
-| ![房间](docs/img/room.jpg) | ![策略](docs/img/band-draft.jpg) | ![休整期](docs/img/prep.jpg) |
-| **部署方向轮盘** | **作战** | **最终攻势** |
-| ![方向](docs/img/facing-wheel.jpg) | ![作战](docs/img/combat.jpg) | ![最终攻势](docs/img/final-assault.jpg) |
 
 ## 目录
 
