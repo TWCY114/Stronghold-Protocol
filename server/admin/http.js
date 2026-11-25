@@ -2,7 +2,7 @@
 // account role is 'admin' (the login fork's accounts; seeded by seed-admin.mjs). The /admin page is external JS/CSS under
 // public/admin/ (CSP script-src 'self'). Hooked into server/http/routes.js beside the auth surface.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, renameSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT } from '../http/config.js';
 import { sendJson, sendError } from '../http/common.js';
@@ -11,8 +11,10 @@ import { hashPassword } from '../auth/auth.js';
 import { getAdmin } from './index.js';
 import { getChat } from '../chat/index.js';
 import { matchState, editFunds, editRound } from './matchEdit.js';   // [auth-fork] live-match admin editing
+import { installPluginBytes, movePluginAside } from '../plugins/install.js';   // [plugin-admin] upload / unlist
 
 const MAX_BODY = 8192;
+const MAX_PLUGIN_BODY = 24 * 1024 * 1024;   // [plugin-admin] base64 zip up to ~18 MB
 const USERNAME_RE = /^[\w一-龥]{2,16}$/u;
 
 function readBody(req) {
@@ -22,6 +24,32 @@ function readBody(req) {
     req.on('end', () => { try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}')); } catch { resolve(null); } });
     req.on('error', () => resolve(null));
   });
+}
+function readBodyLarge(req, limit) {
+  return new Promise((resolve) => {
+    let size = 0; const chunks = [];
+    req.on('data', (c) => { size += c.length; if (size > limit) { resolve(null); req.destroy(); return; } chunks.push(c); });
+    req.on('end', () => { try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}')); } catch { resolve(null); } });
+    req.on('error', () => resolve(null));
+  });
+}
+// [ban] disable + revoke tokens + force every live socket of the account closed (and out of its room).
+function adminBan({ lobby, registry }, id, ban) {
+  const store = getAuth().store;
+  store.setDisabled(id, ban ? 1 : 0);
+  if (ban) store.revokeAccountTokens(id);
+  let kicked = 0;
+  for (const s of registry.byPlayerId.values()) {
+    if (s.accountId !== id) continue;
+    if (ban) {
+      const room = s.roomCode ? lobby.getRoom(s.roomCode) : null;
+      if (room) lobby.removeMember(room, s.playerId);
+      notify(s, { t: 'auth.banned' });
+      try { s.ws?.close(4003, 'banned'); } catch { /* ignore */ }
+      kicked++;
+    }
+  }
+  return { ok: true, banned: !!ban, kicked };
 }
 function bearer(req, parts) {
   const h = req.headers.authorization;
@@ -122,11 +150,72 @@ async function handle(req, res, parts) {
       sendJson(req, res, 200, { ok: true, title: store.adminTitleOf(v.account.id) || '管理' });
       return true;
     }
+    if (path === '/api/admin/config') {   // [moderation] switches / rates / SMTP (password masked)
+      const auth = store.getConfig('auth', {}) || {};
+      const chat = store.getConfig('chat', {}) || {};
+      const smtp = store.getConfig('smtp', {}) || {};
+      sendJson(req, res, 200, { ok: true, guest: auth.guest !== false, register: auth.register !== false,
+        chatEnabled: chat.enabled !== false, rates: chat.rates || {}, smtp: { ...smtp, pass: smtp.pass ? '******' : '' } });
+      return true;
+    }
+    if (path === '/api/admin/mutes') {
+      const mutes = store.listMutes().map((m) => { const t = store.tagOf(m.account_id); return { ...m, name: t ? t.tag : ('#' + m.account_id) }; });
+      sendJson(req, res, 200, { ok: true, mutes });
+      return true;
+    }
+    if (path === '/api/admin/reports') {
+      const status = new URLSearchParams(parts.query || '').get('status') || '';
+      const reports = store.listReports(status || undefined).map((r) => {
+        const t = store.tagOf(r.target), rp = store.tagOf(r.reporter);
+        return { ...r, targetName: t ? t.tag : ('#' + r.target), reporterName: rp ? rp.tag : ('#' + r.reporter) };
+      });
+      sendJson(req, res, 200, { ok: true, reports });
+      return true;
+    }
+    if (path === '/api/admin/chat-history') {   // [report-review] pull one account's world/room/PM lines
+      const id = Number(new URLSearchParams(parts.query || '').get('id'));
+      const chat = getChat();
+      if (!id || !chat) { sendJson(req, res, 400, { ok: false, error: 'bad_id' }); return true; }
+      sendJson(req, res, 200, { ok: true, history: chat.historyOf(id, 100) });
+      return true;
+    }
+    if (path === '/api/admin/plugins') {   // [plugin-admin] installed + unlisted (_removed)
+      const dir = admin.pluginsDir;
+      const list = [];
+      try {
+        for (const e of readdirSync(dir, { withFileTypes: true })) {
+          if (!e.isDirectory() || e.name.startsWith('_') || e.name.startsWith('.')) continue;
+          let manifest = null; try { manifest = JSON.parse(readFileSync(join(dir, e.name, 'plugin.json'), 'utf8')); } catch { /* ignore */ }
+          list.push({ id: e.name, name: manifest?.name || e.name, version: manifest?.version || '', status: 'installed' });
+        }
+        const rem = join(dir, '_removed');
+        if (existsSync(rem)) for (const e of readdirSync(rem, { withFileTypes: true })) {
+          if (!e.isDirectory()) continue;
+          const id = e.name.replace(/-\d{8,}.*$/, '');
+          let manifest = null; try { manifest = JSON.parse(readFileSync(join(rem, e.name, 'plugin.json'), 'utf8')); } catch { /* ignore */ }
+          list.push({ id, folder: e.name, name: manifest?.name || id, status: 'removed' });
+        }
+      } catch { /* ignore */ }
+      sendJson(req, res, 200, { ok: true, plugins: list });
+      return true;
+    }
     sendError(req, res, 404, 'Not found');
     return true;
   }
 
   if (req.method !== 'POST') { sendError(req, res, 405, 'Method not allowed'); return true; }
+
+  if (path === '/api/admin/plugin-upload') {   // [plugin-admin] base64 zip → install + hot rescan
+    const big = await readBodyLarge(req, MAX_PLUGIN_BODY);
+    if (!big || typeof big.zip !== 'string') { sendJson(req, res, 400, { ok: false, error: 'bad_body' }); return true; }
+    try {
+      const r = installPluginBytes(Buffer.from(big.zip, 'base64'), { pluginsDir: admin.pluginsDir, force: true });
+      admin.packs?.rescan?.();
+      sendJson(req, res, 200, { ok: true, id: r.id });
+    } catch (e) { sendJson(req, res, 400, { ok: false, error: String(e?.code || e?.message || 'install_failed').slice(0, 200) }); }
+    return true;
+  }
+
   const body = await readBody(req);
   if (!body || typeof body !== 'object') { sendJson(req, res, 400, { ok: false, error: 'bad_body' }); return true; }
 
@@ -166,6 +255,90 @@ async function handle(req, res, parts) {
     return true;
   }
 
+  if (path === '/api/admin/config') {   // [moderation] guest/register/chat switches + rates + SMTP
+    const auth = store.getConfig('auth', {}) || {};
+    const chat = store.getConfig('chat', {}) || {};
+    if (body.guest !== undefined) auth.guest = !!body.guest;
+    if (body.register !== undefined) auth.register = !!body.register;
+    if (body.chatEnabled !== undefined) chat.enabled = !!body.chatEnabled;
+    if (body.rates && typeof body.rates === 'object') {
+      chat.rates = chat.rates || {};
+      for (const ch of ['world', 'room', 'pm']) {
+        const r = body.rates[ch]; if (!r) continue;
+        chat.rates[ch] = { max: Math.min(60, Math.max(1, Number(r.max) || 3)), windowMs: Math.min(60000, Math.max(500, Number(r.windowMs) || 5000)) };
+      }
+    }
+    store.setConfig('auth', auth); store.setConfig('chat', chat);
+    if (body.smtp && typeof body.smtp === 'object') {
+      const smtp = store.getConfig('smtp', {}) || {};
+      for (const k of ['host', 'port', 'user', 'from']) if (body.smtp[k] !== undefined) smtp[k] = String(body.smtp[k]).slice(0, 120);
+      if (body.smtp.pass !== undefined && body.smtp.pass !== '******') smtp.pass = String(body.smtp.pass).slice(0, 120);
+      smtp.port = Number(smtp.port) || 465;
+      store.setConfig('smtp', smtp);
+    }
+    sendJson(req, res, 200, { ok: true });
+    return true;
+  }
+
+  if (path === '/api/admin/mute') {   // [mute] scope room/lobby/all; minutes=0 permanent
+    const id = Number(body.id); const scope = ['room', 'lobby', 'all'].includes(body.scope) ? body.scope : 'all';
+    if (!id || !store.accountById(id)) { sendJson(req, res, 400, { ok: false, error: 'no_account' }); return true; }
+    const minutes = Math.max(0, Number(body.minutes) || 0);
+    store.addMute(id, scope, minutes ? Date.now() + minutes * 60000 : 0, v.account.id);
+    sendJson(req, res, 200, { ok: true, id, scope, minutes });
+    return true;
+  }
+  if (path === '/api/admin/unmute') {
+    const id = Number(body.id); if (!id) { sendJson(req, res, 400, { ok: false, error: 'bad_id' }); return true; }
+    store.removeMute(id, body.scope || null);
+    sendJson(req, res, 200, { ok: true });
+    return true;
+  }
+  if (path === '/api/admin/ban') {   // [ban] disable + force offline + revoke tokens; ban=false unbans
+    const id = Number(body.id);
+    if (!id || !store.accountById(id)) { sendJson(req, res, 400, { ok: false, error: 'no_account' }); return true; }
+    sendJson(req, res, 200, adminBan(admin, id, body.ban !== false));
+    return true;
+  }
+  if (path === '/api/admin/report-action') {   // [report] dismiss / mute / ban a reported player
+    const rid = Number(body.id); const rep = store.listReports().find((r) => r.id === rid);
+    if (!rep) { sendJson(req, res, 400, { ok: false, error: 'no_report' }); return true; }
+    const action = String(body.action || 'dismiss');
+    if (action === 'mute') store.addMute(rep.target, ['room', 'lobby', 'all'].includes(body.scope) ? body.scope : 'all', Math.max(0, Number(body.minutes) || 0) ? Date.now() + Number(body.minutes) * 60000 : 0, v.account.id);
+    else if (action === 'ban') adminBan(admin, rep.target, true);
+    store.setReportStatus(rid, action === 'dismiss' ? 'dismissed' : 'actioned');
+    sendJson(req, res, 200, { ok: true });
+    return true;
+  }
+  if (path === '/api/admin/grant-title') {   // [titles] world 称号 + profile 称号/徽章 for ANY player
+    const id = Number(body.id);
+    if (!id || !store.accountById(id)) { sendJson(req, res, 400, { ok: false, error: 'no_account' }); return true; }
+    if (body.world !== undefined) store.setWorldTitle(id, String(body.world).trim().slice(0, 8));
+    if (body.profile !== undefined) store.setProfileTitle(id, String(body.profile).trim().slice(0, 16));
+    if (body.badge !== undefined) store.setProfileBadge(id, String(body.badge).trim().slice(0, 16));
+    sendJson(req, res, 200, { ok: true, world: store.worldTitleOf(id), profile: store.profileTitleOf(id), badge: store.profileBadgeOf(id) });
+    return true;
+  }
+  if (path === '/api/admin/plugin-unlist') {   // [plugin-admin] move to _removed (reversible) + rescan
+    const id = String(body.id || '');
+    if (!/^[\w-]+$/.test(id) || !existsSync(join(admin.pluginsDir, id))) { sendJson(req, res, 400, { ok: false, error: 'no_plugin' }); return true; }
+    movePluginAside(admin.pluginsDir, id, '_removed');
+    admin.packs?.rescan?.();
+    sendJson(req, res, 200, { ok: true, id });
+    return true;
+  }
+  if (path === '/api/admin/plugin-relist') {   // [plugin-admin] move a _removed folder back + rescan
+    const folder = String(body.folder || '');
+    const rem = join(admin.pluginsDir, '_removed');
+    if (!/^[\w-]+$/.test(folder) || !existsSync(join(rem, folder))) { sendJson(req, res, 400, { ok: false, error: 'no_plugin' }); return true; }
+    const id = folder.replace(/-\d{8,}.*$/, '');
+    if (existsSync(join(admin.pluginsDir, id))) { sendJson(req, res, 400, { ok: false, error: 'exists' }); return true; }
+    renameSync(join(rem, folder), join(admin.pluginsDir, id));
+    admin.packs?.rescan?.();
+    sendJson(req, res, 200, { ok: true, id });
+    return true;
+  }
+
   if (path === '/api/admin/accounts') {
     const username = String(body.username ?? '').trim();
     const password = String(body.password ?? '');
@@ -183,8 +356,8 @@ async function handle(req, res, parts) {
     const acc = store.accountById(id);
     if (!acc) { sendJson(req, res, 400, { ok: false, error: 'no_account' }); return true; }
     const action = String(body.action || '');
-    if (action === 'disable') { store.setDisabled(id, 1); store.revokeAccountTokens(id); }
-    else if (action === 'enable') { store.setDisabled(id, 0); }
+    if (action === 'disable') { adminBan(admin, id, true); }   // [ban] force offline too
+    else if (action === 'enable') { adminBan(admin, id, false); }
     else if (action === 'role') { store.setRole(id, body.role === 'admin' ? 'admin' : 'user'); }
     else if (action === 'reset-password') {
       const pw = String(body.password ?? '');

@@ -8,17 +8,22 @@
 import { connect as netConnect } from 'node:net';
 import { connect as tlsConnect } from 'node:tls';
 
-export function createMailer({ log } = {}) {
-  const host = process.env.SP_SMTP_HOST || '';
-  const port = Number(process.env.SP_SMTP_PORT || 465);
-  const user = process.env.SP_SMTP_USER || '';
-  const pass = process.env.SP_SMTP_PASS || '';
-  const from = process.env.SP_SMTP_FROM || user;
-  const secure = process.env.SP_SMTP_SECURE != null ? process.env.SP_SMTP_SECURE === '1' : port === 465;
-  const configured = Boolean(host && user && pass);
+export function createMailer({ log, getConfig } = {}) {
+  // [smtp-admin] admin-panel SMTP config (server_config 'smtp') overrides the environment at send time.
+  function cfg() {
+    const c = (getConfig && getConfig()) || {};
+    const host = c.host || process.env.SP_SMTP_HOST || '';
+    const port = Number(c.port || process.env.SP_SMTP_PORT || 465);
+    const user = c.user || process.env.SP_SMTP_USER || '';
+    const pass = c.pass || process.env.SP_SMTP_PASS || '';
+    const from = c.from || process.env.SP_SMTP_FROM || user;
+    const secure = process.env.SP_SMTP_SECURE != null ? process.env.SP_SMTP_SECURE === '1' : port === 465;
+    return { host, port, user, pass, from, secure, configured: Boolean(host && user && pass) };
+  }
 
   /** Send a plain-text mail. Resolves {ok:true} or {ok:false, error, detail?}; never rejects. */
   function sendMail({ to, subject, text }) {
+    const { host, port, user, pass, from, secure, configured } = cfg();
     if (!configured) return Promise.resolve({ ok: false, error: 'email_not_configured' });
     return new Promise((resolve) => {
       let sock = null, buf = '', pending = null, done = false;
@@ -65,5 +70,5 @@ export function createMailer({ log } = {}) {
     });
   }
 
-  return { configured, sendMail };
+  return { get configured() { return cfg().configured; }, sendMail };
 }

@@ -33,7 +33,16 @@ const ERRORS = {
   smtp_failed: '邮件服务器错误，请稍后再试',
   smtp_timeout: '邮件服务器超时，请稍后再试',
   device_has_account: '该设备已注册过账号，请直接登录',
+  register_closed: '注册通道已关闭',
+  guest_closed: '游客登录已关闭',
 };
+
+// [switches] hide 注册 / 游客 buttons when the admin disables them.
+fetch('/api/config').then((r) => r.json()).then((j) => {
+  if (!j?.ok) return;
+  if (j.register === false) { const b = document.getElementById('go-register'); if (b) b.style.display = 'none'; }
+  if (j.guest === false) { const b = document.getElementById('go-guest'); if (b) b.style.display = 'none'; }
+}).catch(() => {});
 
 function setMsg(text, kind) { msg.textContent = text; msg.className = 'login-msg' + (kind ? ' is-' + kind : ''); }
 function show(tab) {

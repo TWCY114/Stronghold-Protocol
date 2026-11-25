@@ -16,9 +16,10 @@ function loadFilter() {
   try { const a = JSON.parse(readFileSync(join(ROOT, 'server', 'chat', 'filter.json'), 'utf8')); return Array.isArray(a) ? a.filter((w) => typeof w === 'string' && w) : []; }
   catch { return []; }
 }
-function createLimiter({ max, windowMs }) {
+function createLimiter(getRate) {
   const hits = new Map();
   return (key, now = Date.now()) => {
+    const { max, windowMs } = getRate();   // [chat-rate] admin-configurable per call
     let r = hits.get(key);
     if (!r || now >= r.resetAt) { r = { n: 0, resetAt: now + windowMs }; hits.set(key, r); }
     return ++r.n <= max;
@@ -32,9 +33,17 @@ const send = (session, msg) => { try { if (session.connected && session.ws) sess
 export function createChat({ dbPath, registry, log, now = Date.now }) {
   const store = createChatStore({ dbPath, log });
   const filterWords = loadFilter();
-  const lobbyTake = createLimiter(LOBBY_RATE);
-  const pmTake = createLimiter(PM_RATE);
+  // [chat-config] admin-tunable rates / kill-switch live in server_config('chat').
+  const chatCfg = () => getAuth().store.getConfig('chat', {}) || {};
+  const lobbyTake = createLimiter(() => ({ ...LOBBY_RATE, ...(chatCfg().rates || {}).world }));
+  const pmTake = createLimiter(() => ({ ...PM_RATE, ...(chatCfg().rates || {}).pm }));
+  const roomTake = createLimiter(() => ({ ...LOBBY_RATE, ...(chatCfg().rates || {}).room }));
   const filter = (text) => { let out = text; for (const w of filterWords) out = out.split(w).join('*'.repeat(w.length)); return out; };
+  // [mute] scope room / lobby / all; until=0 permanent, otherwise auto-expires (mutesOf drops expired rows).
+  const mutedFor = (session, scope) => {
+    if (!session.accountId) return false;
+    return getAuth().store.mutesOf(session.accountId, now()).some((m) => m.scope === 'all' || m.scope === scope);
+  };
 
   /** The connected session of an account (for online status / delivery), or null. */
   function onlineOf(accountId) {
@@ -60,21 +69,38 @@ export function createChat({ dbPath, registry, log, now = Date.now }) {
     sendChat(session, rawBody, channel = 'world') {
       const body = filter(String(rawBody ?? '').trim().slice(0, BODY_MAX));
       if (!body) return { ok: false, error: 'empty' };
-      if (!lobbyTake(session.playerId, now())) return { ok: false, error: 'rate_limited' };
+      // [chat-off] one admin switch silences the whole chat system (everyone, admins included); announce still works.
+      if (chatCfg().enabled === false) return { ok: false, error: 'chat_off' };
+      const at = now();   // [dup-fix] ONE timestamp for the live row and the stored row so history dedup keys match
+      const take = channel === 'room' ? roomTake : lobbyTake;
+      if (!take(session.playerId, at)) return { ok: false, error: 'rate_limited' };
+      // [mute] room / lobby / all scopes, optional expiry.
+      if (mutedFor(session, channel === 'room' ? 'room' : 'lobby')) return { ok: false, error: 'muted' };
       const name = session.name || session.username || session.guestName || '玩家';
-      const base = { t: 'chat.lobby', name, body, accountId: session.accountId ?? null, guest: session.role === 'guest', at: now() };
+      const base = { t: 'chat.lobby', name, body, accountId: session.accountId ?? null, guest: session.role === 'guest', at };
       if (channel === 'room') {
         const code = session.roomCode;
         if (!code) return { ok: false, error: 'no_room' };
-        store.insertRoom(code, session.accountId ?? null, name, body, now());
+        store.insertRoom(code, session.accountId ?? null, name, body, at);
         for (const s of registry.byPlayerId.values()) if (s.connected && s.roomCode === code) send(s, { ...base, channel: 'room', roomCode: code });
         return { ok: true, channel: 'room' };
       }
-      // [admin-title] admins carry a configurable 称号 (default 管理) shown as [管理] right after [世界].
-      const title = session.role === 'admin' ? (getAuth().store.adminTitleOf(session.accountId) || '管理') : null;
-      store.insertLobby(session.accountId ?? null, name, body, title, now());
+      // [titles] any player may carry an admin-granted world 称号; admins fall back to their own 称号 / 管理.
+      const title = getAuth().store.worldTitleOf(session.accountId)
+        || (session.role === 'admin' ? (getAuth().store.adminTitleOf(session.accountId) || '管理') : null);
+      store.insertLobby(session.accountId ?? null, name, body, title, at);
       broadcast({ ...base, channel: 'world', title });
       return { ok: true, channel: 'world' };
+    },
+    /** [report-review] an admin pulls one account's stored world / room / PM lines. */
+    historyOf(accountId, limit = 100) { return store.accountHistory(Number(accountId), limit); },
+    /** [report] a player-card report (bad speech only). */
+    report(session, targetId, reason) {
+      if (!session.accountId) return { ok: false, error: 'need_account' };
+      targetId = Number(targetId);
+      if (!targetId || targetId === session.accountId) return { ok: false, error: 'bad_target' };
+      const id = getAuth().store.addReport(targetId, session.accountId, String(reason || '发言不善').slice(0, 200), now());
+      return { ok: true, id };
     },
     /** Channel history: world (lobby) or the sender's current room. */
     history(session, channel = 'world', limit = 100) {
@@ -148,10 +174,13 @@ export function createChat({ dbPath, registry, log, now = Date.now }) {
       if (!store.areFriends(session.accountId, toId)) return { ok: false, error: 'not_friends' };
       const body = filter(String(rawBody ?? '').trim().slice(0, BODY_MAX));
       if (!body) return { ok: false, error: 'empty' };
-      if (!pmTake(session.playerId, now())) return { ok: false, error: 'rate_limited' };
+      if (chatCfg().enabled === false) return { ok: false, error: 'chat_off' };   // [chat-off] PM included
+      if (mutedFor(session, 'pm')) return { ok: false, error: 'muted' };   // [mute] only an 'all' mute reaches PMs
+      const at = now();   // [dup-fix] one timestamp for stored row + live echo
+      if (!pmTake(session.playerId, at)) return { ok: false, error: 'rate_limited' };
       const target = onlineOf(toId);
-      const id = store.insertMessage(session.accountId, toId, body, target ? 1 : 0, now());
-      const msg = { t: 'pm.message', id, fromId: session.accountId, fromName: session.name, toId, body, at: now(), offline: !target };
+      const id = store.insertMessage(session.accountId, toId, body, target ? 1 : 0, at);
+      const msg = { t: 'pm.message', id, fromId: session.accountId, fromName: session.name, toId, body, at, offline: !target };
       if (target) send(target, msg);
       send(session, { ...msg, self: true });   // echo to sender
       return { ok: true, id, offline: !target };

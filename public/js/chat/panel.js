@@ -55,7 +55,8 @@ const CSS = `
 .sp-chat-toast.show{opacity:1}
 `;
 
-const ERR = { empty: '不能发空消息', rate_limited: '发言太快，稍等', no_room: '不在房间中', hello_required: '未连接' };
+const ERR = { empty: '不能发空消息', rate_limited: '发言太快，稍等', no_room: '不在房间中', hello_required: '未连接',
+  chat_off: '聊天系统已关闭', muted: '你已被禁言', not_ready: '聊天未就绪', need_account: '需要登录账号' };
 const GEO_KEY = 'sp.chat.box';
 const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 
@@ -89,6 +90,14 @@ export function installChat({ net }) {
   const resize = el('div', 'sp-chat-resize');
   box.append(log, tabs, inputRow, resize);
   document.body.appendChild(box);
+
+  // [chat-off] global kill switch: hide the whole chat box (announce marquee still runs) when admin disables chat.
+  function syncChatEnabled() {
+    fetch('/api/config').then((r) => r.json()).then((j) => {
+      box.style.display = (j?.ok && j.chatEnabled === false) ? 'none' : '';
+    }).catch(() => {});
+  }
+  syncChatEnabled();
 
   const toastEl = el('div', 'sp-chat-toast'); document.body.appendChild(toastEl);
   let toastTimer = null;
@@ -244,7 +253,7 @@ export function installChat({ net }) {
   // ---- net wiring ---------------------------------------------------------------------------------------------------
   const refresh = () => { if (net.status !== 'online') return; box.dataset.online = '1'; net.send('chat.history', { channel: 'world' }); if (state.roomCode) net.send('chat.history', { channel: 'room' }); };
   net.on('welcome', (m) => { if (m.account?.id) state.own = m.account.id; refresh(); });
-  net.on('status', () => { box.dataset.online = net.status === 'online' ? '1' : '0'; if (net.status === 'online') refresh(); });
+  net.on('status', () => { box.dataset.online = net.status === 'online' ? '1' : '0'; if (net.status === 'online') { refresh(); syncChatEnabled(); } });
   net.on('room.state', (m) => { if (m.code && m.code !== state.roomCode) { state.roomCode = m.code; state.channel = 'room'; net.send('chat.history', { channel: 'room' }); rebuildLog(true); syncView(); } else if (m.code) state.roomCode = m.code; });
   net.on('room.closed', () => { state.roomCode = null; if (state.channel === 'room') { state.channel = 'world'; rebuildLog(true); } syncView(); });
   net.on('chat.lobby', (m) => {

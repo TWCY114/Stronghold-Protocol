@@ -69,6 +69,10 @@ export function createChatStore({ dbPath, log }) {
     trimRoom: db.prepare('DELETE FROM room_chat WHERE room_code=? AND id NOT IN (SELECT id FROM room_chat WHERE room_code=? ORDER BY id DESC LIMIT ?)'),
     renameLobby: db.prepare('UPDATE lobby_chat SET name=? WHERE account_id=?'),
     renameRoom: db.prepare('UPDATE room_chat SET name=? WHERE account_id=?'),
+    // [report-review] an admin pulls one account's stored lines across world / room / PM.
+    acctLobby: db.prepare("SELECT id, account_id, name, body, created_at, title, 'world' AS channel FROM lobby_chat WHERE account_id=? ORDER BY id DESC LIMIT ?"),
+    acctRoom: db.prepare("SELECT id, account_id, name, body, created_at, room_code, 'room' AS channel FROM room_chat WHERE account_id=? ORDER BY id DESC LIMIT ?"),
+    acctPm: db.prepare("SELECT id, from_id, to_id, body, created_at, 'pm' AS channel FROM messages WHERE from_id=? OR to_id=? ORDER BY id DESC LIMIT ?"),
   };
 
   const pair = (a, b) => (a < b ? [a, b] : [b, a]);
@@ -109,6 +113,10 @@ export function createChatStore({ dbPath, log }) {
     renameSender(accountId, name) {
       q.renameLobby.run(name, accountId);
       q.renameRoom.run(name, accountId);
+    },
+    /** [report-review] one account's stored chat lines (world / room / PM), newest first, for admin review. */
+    accountHistory(id, limit = 100) {
+      return { world: q.acctLobby.all(id, limit), room: q.acctRoom.all(id, limit), pm: q.acctPm.all(id, id, limit) };
     },
     /** [player-id] erase an account's social footprint on self-deletion: friendships, requests, PMs and chat lines. */
     purgeAccount(id) {

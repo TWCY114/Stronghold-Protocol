@@ -73,6 +73,8 @@ function PlayerCard() {
   // [friend-gate] 私聊 is friends-only: for a non-friend the button is greyed, hover explains why, and clicking raises
   // the explicit error instead of opening a private chat.
   const pmBlocked = () => toast('错误：你与对方还不是好友');
+  // [report] card-only report for bad speech; admin reviews and can pull the player's chat history.
+  const report = () => { net.send('chat.report', { targetId: card.id, reason: '发言不善' }); toast('举报已提交，管理员会核查'); };
   return html`<${Modal} open=${true} onClose=${close} title="玩家名片" micro="PLAYER CARD" width="3.1rem" class="df-card">
     <style>${CARD_CSS}</style>
     <div class="df-card__body">
@@ -81,6 +83,7 @@ function PlayerCard() {
         <div class="df-card__id">
           <div class="df-name">${card.name}<span class="df-disc">#${card.disc}</span></div>
           <div class="df-meta"><i class=${'df-dot' + (card.online ? ' on' : '')}></i>${card.online ? '在线' : '离线'} · ID ${card.id}</div>
+          ${(card.profile_title || card.profile_badge) ? html`<div class="df-titles">${card.profile_title ? html`<span class="df-title">${card.profile_title}</span>` : null}${card.profile_badge ? html`<span class="df-badge">${card.profile_badge}</span>` : null}</div>` : null}
         </div>
       </div>
       <div class="df-stats">
@@ -93,6 +96,7 @@ function PlayerCard() {
         ${card.isFriend
           ? html`<${Button} size="sm" variant="secondary" onClick=${pm}>私聊<//>`
           : html`<${Button} size="sm" variant="secondary" class="df-pm-off" onClick=${pmBlocked} title="你与对方还不是好友" aria-disabled="true">私聊<//>`}
+        <${Button} size="sm" variant="secondary" class="df-report" onClick=${report} title="举报该玩家发言不善">举报<//>
       </div>`}
     </div>
   <//>`;
@@ -286,5 +290,9 @@ const CARD_CSS = `
 .df-actions .btn{flex:1}
 .df-pm-off.btn{background:var(--bg-1,#141816);border-color:var(--line,#2f3a35);color:var(--text-dim,#6e7681);cursor:not-allowed;opacity:.75}
 .df-pm-off.btn:hover{background:var(--bg-1,#141816);border-color:var(--line,#2f3a35);color:var(--text-dim,#6e7681);box-shadow:none}
+.df-titles{display:flex;gap:.05rem;margin-top:.04rem;flex-wrap:wrap}
+.df-title{font-size:.11rem;padding:.01rem .06rem;border:1px solid var(--mint-a35,rgba(78,216,175,.4));border-radius:.04rem;color:var(--mint,#4ed8af)}
+.df-badge{font-size:.11rem;padding:.01rem .06rem;border:1px solid rgba(255,196,0,.45);border-radius:.04rem;color:#ffc400}
+.df-report.btn{color:#ff8080;border-color:rgba(255,85,85,.4)}
 .df-self{font-size:.12rem;color:var(--text-dim,#8b949e);text-align:center;margin:0}
 `;

@@ -19,7 +19,9 @@ function playerView(id) {
   const p = getAuth().store.profileOf(Number(id));
   if (!p) return null;
   const chat = getChat();
-  return { ...p, online: !!(chat && chat.onlineOf(p.id)), friendsCount: chat ? chat.store.friendIds(p.id).length : 0 };
+  const st = getAuth().store;
+  return { ...p, online: !!(chat && chat.onlineOf(p.id)), friendsCount: chat ? chat.store.friendIds(p.id).length : 0,
+    world_title: st.worldTitleOf(p.id), profile_title: st.profileTitleOf(p.id), profile_badge: st.profileBadgeOf(p.id) };   // [titles]
 }
 
 /** Read a small JSON request body (rejects oversize / invalid). */
@@ -65,7 +67,7 @@ function serveLogin(res) {
 
 /** Does this path belong to the auth surface? */
 function handles(rawPath) {
-  return rawPath === '/login' || rawPath === '/login/' || rawPath.startsWith('/api/auth/') || rawPath.startsWith('/api/player/');
+  return rawPath === '/login' || rawPath === '/login/' || rawPath === '/api/config' || rawPath.startsWith('/api/auth/') || rawPath.startsWith('/api/player/');
 }
 
 /**
@@ -129,6 +131,12 @@ async function handle(req, res, parts) {
   }
   if (path === '/api/auth/email-config') {
     sendJson(req, res, 200, { ok: true, configured: auth.emailConfigured });
+    return true;
+  }
+  if (path === '/api/config') {   // [switches] public toggles the login page / chat read at boot
+    const a = auth.store.getConfig('auth', {}) || {};
+    const c = auth.store.getConfig('chat', {}) || {};
+    sendJson(req, res, 200, { ok: true, guest: a.guest !== false, register: a.register !== false, chatEnabled: c.enabled !== false, emailConfigured: auth.emailConfigured });
     return true;
   }
 

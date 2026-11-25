@@ -51,6 +51,9 @@ export function handleChat(conn, msg) {
     case 'pm.history':
       reply({ t: 'pm.history', otherId: Number(msg.otherId), messages: chat.pmHistory(session, msg.otherId, Number(msg.limit) || 100) });
       break;
+    case 'chat.report': // [report] player-card report (bad speech); admin reviews + pulls history
+      reply({ t: 'chat.report.result', ...chat.report(session, msg.targetId, msg.reason) });
+      break;
     default:
       reply({ t: 'chat.error', error: 'unknown_type' });
   }

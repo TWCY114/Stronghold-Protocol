@@ -96,7 +96,7 @@ hook('server/index.js',
   `import { wireAdmin } from './admin/index.js'; // [auth-fork]\n`);
 hook('server/index.js',
   `  const { registry, lobby, network } = createSessionStack(opts, { data, log, content, plugins: roomSets, hosts, versions, versionHosts, simPool });\n`,
-  `  wireAdmin({ network, lobby, registry, log }); // [auth-fork]\n`);
+  `  wireAdmin({ network, lobby, registry, log, packs, pluginsDir }); // [auth-fork] packs/pluginsDir for plugin admin\n`);
 
 // ---- server/http/routes.js: admin surface beside auth ---------------------------------------------------------------
 hook('server/http/routes.js',
@@ -119,7 +119,7 @@ hook('server/index.js',
   `import { wireAdmin } from './admin/index.js'; // [auth-fork]\n`,
   `import { wireChat } from './chat/index.js'; // [auth-fork]\n`);
 hook('server/index.js',
-  `  wireAdmin({ network, lobby, registry, log }); // [auth-fork]\n`,
+  `  wireAdmin({ network, lobby, registry, log, packs, pluginsDir }); // [auth-fork] packs/pluginsDir for plugin admin\n`,
   `  wireChat({ registry, log }); // [auth-fork]\n`);
 
 // ---- public/js/net.js: let chat/friend types bypass C2S validation on send ------------------------------------------
@@ -256,6 +256,7 @@ const check = [...touched,
   'server/auth/mailer.js', 'public/js/auth/fingerprint.js', 'public/js/auth/convert.js', 'public/login/login.js',
   'server/admin/matchEdit.js', 'server/match/Match.js', 'server/match/host/proxy.js', 'public/js/screens/room.js',
   'server/net.js', 'public/js/ui/components.js',
+  'public/js/chat/rich.js', 'public/js/chat/announce.js', 'public/admin/admin.js',
   '_test-creds.mjs', 'test-admin.mjs', 'test-admin-api.mjs', 'test-admin-e2e.mjs', 'test-admin-match.mjs',
   'shot-admin.mjs', 'test-auth.mjs', 'test-chat.mjs', 'test-token-auth.mjs', 'test-account-plus.mjs'];
 let bad = 0;

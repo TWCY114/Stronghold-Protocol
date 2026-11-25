@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0d1117">
   <title>管理后台 · 卫戍协议：盟约</title>
-  <link rel="stylesheet" href="/admin/admin.css">
+  <link rel="stylesheet" href="/admin/admin.css?v=1.2.0">
 </head>
 <body>
   <div class="adm-shell">
@@ -36,6 +36,11 @@
         <button class="adm-tab" data-tab="rooms">房间 / 对局</button>
         <button class="adm-tab" data-tab="accounts">账号管理</button>
         <button class="adm-tab" data-tab="broadcast">公告 / 称号</button>
+        <button class="adm-tab" data-tab="settings">系统开关</button>
+        <button class="adm-tab" data-tab="moderation">禁言 / 封禁</button>
+        <button class="adm-tab" data-tab="reports">举报</button>
+        <button class="adm-tab" data-tab="grant">称号授予</button>
+        <button class="adm-tab" data-tab="plugins">插件</button>
       </nav>
 
       <section class="adm-panel" data-panel="players">
@@ -83,9 +88,88 @@
         </form>
         <p class="adm-sub" style="margin:6px 2px">发送后所有在线玩家（无论哪个界面）顶部会飘过一行弹幕，不阻挡任何操作。</p>
       </section>
+
+      <section class="adm-panel is-hidden" data-panel="settings">
+        <div class="adm-panel-head"><h2>登录 / 聊天开关</h2></div>
+        <form class="adm-create" id="switch-form" style="flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="sw-guest"> 允许游客登录</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="sw-register"> 允许注册</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="sw-chat"> 开启聊天系统</label>
+          <button class="adm-btn" type="submit">保存开关</button>
+        </form>
+        <div class="adm-panel-head" style="margin-top:14px"><h2>发言频率（条 / 窗口毫秒）</h2></div>
+        <form class="adm-create" id="rate-form" style="flex-wrap:wrap">
+          <label style="font-size:12px;color:#9aa7a1">大厅 <input id="rate-world-max" type="number" min="1" max="60" style="width:60px"> / <input id="rate-world-win" type="number" min="500" max="60000" style="width:80px"></label>
+          <label style="font-size:12px;color:#9aa7a1">房间 <input id="rate-room-max" type="number" min="1" max="60" style="width:60px"> / <input id="rate-room-win" type="number" min="500" max="60000" style="width:80px"></label>
+          <label style="font-size:12px;color:#9aa7a1">私聊 <input id="rate-pm-max" type="number" min="1" max="60" style="width:60px"> / <input id="rate-pm-win" type="number" min="500" max="60000" style="width:80px"></label>
+          <button class="adm-btn" type="submit">保存频率</button>
+        </form>
+        <div class="adm-panel-head" style="margin-top:14px"><h2>SMTP 邮件服务</h2></div>
+        <form class="adm-create" id="smtp-form" style="flex-wrap:wrap">
+          <input id="smtp-host" placeholder="主机 smtp.example.com" style="flex:1 1 40%">
+          <input id="smtp-port" type="number" placeholder="端口 465" style="width:80px">
+          <input id="smtp-user" placeholder="账号" style="flex:1 1 30%">
+          <input id="smtp-from" placeholder="发件人（默认同账号）" style="flex:1 1 30%">
+          <input id="smtp-pass" type="password" placeholder="密码/授权码（留 ****** 不变）" style="flex:1 1 40%">
+          <button class="adm-btn" type="submit">保存 SMTP</button>
+        </form>
+      </section>
+
+      <section class="adm-panel is-hidden" data-panel="moderation">
+        <div class="adm-panel-head"><h2>禁言（房间 / 大厅 / 全部）</h2><button class="adm-btn ghost" data-refresh="mutes">刷新</button></div>
+        <form class="adm-create" id="mute-form" style="flex-wrap:wrap">
+          <input id="mute-id" type="number" placeholder="玩家 ID" style="width:90px" required>
+          <select id="mute-scope"><option value="all">全部</option><option value="lobby">仅大厅</option><option value="room">仅房间</option></select>
+          <input id="mute-min" type="number" min="0" placeholder="分钟(0=永久)" style="width:110px">
+          <button class="adm-btn" type="submit">禁言</button>
+          <button class="adm-btn ghost" type="button" id="unmute-btn">解除禁言</button>
+        </form>
+        <div class="adm-table-wrap"><table class="adm-table" id="mutes-table"></table></div>
+        <div class="adm-panel-head" style="margin-top:14px"><h2>封禁（禁止登录 + 强制下线）</h2></div>
+        <form class="adm-create" id="ban-form">
+          <input id="ban-id" type="number" placeholder="玩家 ID" style="width:90px" required>
+          <button class="adm-btn" type="submit" id="ban-btn">封禁</button>
+          <button class="adm-btn ghost" type="button" id="unban-btn">解封</button>
+        </form>
+      </section>
+
+      <section class="adm-panel is-hidden" data-panel="reports">
+        <div class="adm-panel-head"><h2>举报（发言不善）</h2><button class="adm-btn ghost" data-refresh="reports">刷新</button></div>
+        <div class="adm-table-wrap"><table class="adm-table" id="reports-table"></table></div>
+        <div class="adm-panel-head" style="margin-top:14px"><h2>调取聊天记录</h2></div>
+        <form class="adm-create" id="history-form">
+          <input id="history-id" type="number" placeholder="玩家 ID" style="width:90px" required>
+          <button class="adm-btn" type="submit">调取</button>
+        </form>
+        <pre id="history-out" style="max-height:300px;overflow:auto;background:#0d1117;border:1px solid #22302a;border-radius:8px;padding:10px;font-size:12px;white-space:pre-wrap"></pre>
+      </section>
+
+      <section class="adm-panel is-hidden" data-panel="grant">
+        <div class="adm-panel-head"><h2>授予称号 / 徽章（任意玩家）</h2></div>
+        <form class="adm-create" id="grant-form" style="flex-wrap:wrap">
+          <input id="grant-id" type="number" placeholder="玩家 ID" style="width:90px" required>
+          <input id="grant-world" placeholder="世界频道称号 ≤8" maxlength="8" style="flex:1 1 20%">
+          <input id="grant-profile" placeholder="主页称号 ≤16" maxlength="16" style="flex:1 1 20%">
+          <input id="grant-badge" placeholder="主页徽章 ≤16" maxlength="16" style="flex:1 1 20%">
+          <button class="adm-btn" type="submit">授予</button>
+        </form>
+        <p class="adm-sub" style="margin:6px 2px">世界称号显示在该玩家 [世界] 之后；主页称号/徽章显示在玩家名片。留空提交即清除对应项。</p>
+      </section>
+
+      <section class="adm-panel is-hidden" data-panel="plugins">
+        <div class="adm-panel-head"><h2>上传插件（zip）</h2></div>
+        <form class="adm-create" id="plugin-form">
+          <input id="plugin-file" type="file" accept=".zip,application/zip" required>
+          <button class="adm-btn" type="submit">上传并安装</button>
+        </form>
+        <div class="adm-panel-head" style="margin-top:14px"><h2>已安装</h2><button class="adm-btn ghost" data-refresh="plugins">刷新</button></div>
+        <div class="adm-table-wrap"><table class="adm-table" id="plugins-table"></table></div>
+        <div class="adm-panel-head" style="margin-top:14px"><h2>已下架（可重新上架）</h2></div>
+        <div class="adm-table-wrap"><table class="adm-table" id="removed-table"></table></div>
+      </section>
     </main>
     <p class="adm-msg" id="msg" role="alert"></p>
   </div>
-  <script type="module" src="/admin/admin.js"></script>
+  <script type="module" src="/admin/admin.js?v=1.2.0"></script>
 </body>
 </html>

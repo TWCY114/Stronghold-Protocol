@@ -246,8 +246,33 @@ document.addEventListener('click', async (e) => {
     toast(j?.ok ? '已更新' : ('失败：' + (j?.error || '')), j?.ok ? 'ok' : 'err');
     loadAccounts(); return;
   }
+  const unm = e.target.closest('[data-unmute]');
+  if (unm) {
+    const { j } = await api('/api/admin/unmute', { method: 'POST', body: { id: Number(unm.dataset.unmute), scope: unm.dataset.scope } });
+    toast(j?.ok ? '已解除' : '失败', j?.ok ? 'ok' : 'err'); loadMutes(); return;
+  }
+  const rep = e.target.closest('[data-rep]');
+  if (rep) {
+    const act = rep.dataset.act;
+    if (act !== 'dismiss' && !confirm(`对举报 #${rep.dataset.rep} 执行「${act === 'mute' ? '禁言' : '封禁'}」？`)) return;
+    const { j } = await api('/api/admin/report-action', { method: 'POST', body: { id: Number(rep.dataset.rep), action: act, scope: 'all', minutes: 60 } });
+    toast(j?.ok ? '已处理' : '失败', j?.ok ? 'ok' : 'err'); loadReports(); return;
+  }
+  const hist = e.target.closest('[data-hist]');
+  if (hist) { $('#history-id').value = hist.dataset.hist; $('#history-form').requestSubmit(); return; }
+  const unlist = e.target.closest('[data-unlist]');
+  if (unlist) {
+    if (!confirm(`下架插件 ${unlist.dataset.unlist}？移入 _removed，可重新上架。`)) return;
+    const { j } = await api('/api/admin/plugin-unlist', { method: 'POST', body: { id: unlist.dataset.unlist } });
+    toast(j?.ok ? '已下架' : ('失败：' + (j?.error || '')), j?.ok ? 'ok' : 'err'); loadPlugins(); return;
+  }
+  const relist = e.target.closest('[data-relist]');
+  if (relist) {
+    const { j } = await api('/api/admin/plugin-relist', { method: 'POST', body: { folder: relist.dataset.relist } });
+    toast(j?.ok ? '已上架' : ('失败：' + (j?.error || '')), j?.ok ? 'ok' : 'err'); loadPlugins(); return;
+  }
   const ref = e.target.closest('[data-refresh]');
-  if (ref) { ({ players: loadPlayers, rooms: loadRooms, accounts: loadAccounts })[ref.dataset.refresh]?.(); }
+  if (ref) { ({ players: loadPlayers, rooms: loadRooms, accounts: loadAccounts, mutes: loadMutes, reports: loadReports, plugins: loadPlugins })[ref.dataset.refresh]?.(); }
 });
 
 $('#create-form').addEventListener('submit', async (e) => {
@@ -255,7 +280,7 @@ $('#create-form').addEventListener('submit', async (e) => {
   const f = new FormData(e.target);
   const { j } = await api('/api/admin/accounts', { method: 'POST', body: { username: f.get('username'), password: f.get('password'), role: f.get('role') } });
   toast(j?.ok ? '账号已创建' : ('失败：' + (j?.error || '')), j?.ok ? 'ok' : 'err');
-  if (j?.ok) e.target.reset();
+  e.target.username.value = ''; e.target.password.value = '';   // [create-reset] always clear name/password after submit
   loadAccounts();
 });
 
@@ -278,10 +303,119 @@ $('#announce-form').addEventListener('submit', async (e) => {
   if (j?.ok) $('#ann-text').value = '';
 });
 
+// ---- [switches]/[smtp-admin]/[rates] system settings tab -------------------------------------------------------------
+async function loadSettings() {
+  const { j } = await api('/api/admin/config');
+  if (!j?.ok) return;
+  $('#sw-guest').checked = j.guest !== false;
+  $('#sw-register').checked = j.register !== false;
+  $('#sw-chat').checked = j.chatEnabled !== false;
+  const r = j.rates || {};
+  for (const ch of ['world', 'room', 'pm']) {
+    $(`#rate-${ch}-max`).value = r[ch]?.max ?? (ch === 'pm' ? 10 : 3);
+    $(`#rate-${ch}-win`).value = r[ch]?.windowMs ?? 5000;
+  }
+  const s = j.smtp || {};
+  $('#smtp-host').value = s.host || ''; $('#smtp-port').value = s.port || 465;
+  $('#smtp-user').value = s.user || ''; $('#smtp-from').value = s.from || ''; $('#smtp-pass').value = s.pass || '';
+}
+$('#switch-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const { j } = await api('/api/admin/config', { method: 'POST', body: { guest: $('#sw-guest').checked, register: $('#sw-register').checked, chatEnabled: $('#sw-chat').checked } });
+  toast(j?.ok ? '开关已保存' : '失败', j?.ok ? 'ok' : 'err');
+});
+$('#rate-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const rates = {};
+  for (const ch of ['world', 'room', 'pm']) rates[ch] = { max: Number($(`#rate-${ch}-max`).value), windowMs: Number($(`#rate-${ch}-win`).value) };
+  const { j } = await api('/api/admin/config', { method: 'POST', body: { rates } });
+  toast(j?.ok ? '发言频率已保存' : '失败', j?.ok ? 'ok' : 'err');
+});
+$('#smtp-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const smtp = { host: $('#smtp-host').value.trim(), port: Number($('#smtp-port').value), user: $('#smtp-user').value.trim(), from: $('#smtp-from').value.trim(), pass: $('#smtp-pass').value };
+  const { j } = await api('/api/admin/config', { method: 'POST', body: { smtp } });
+  toast(j?.ok ? 'SMTP 已保存' : '失败', j?.ok ? 'ok' : 'err');
+  loadSettings();
+});
+
+// ---- [mute]/[ban] moderation tab -------------------------------------------------------------------------------------
+async function loadMutes() {
+  const { j } = await api('/api/admin/mutes');
+  if (!j?.ok) return;
+  const rows = j.mutes.map((m) => `<tr><td>${m.account_id}</td><td>${esc(m.name || '')}</td><td>${{ all: '全部', lobby: '大厅', room: '房间' }[m.scope] || m.scope}</td><td>${m.until ? new Date(m.until).toLocaleString('zh-CN') : '永久'}</td><td><button class="adm-btn ghost mini" data-unmute="${m.account_id}" data-scope="${m.scope}">解除</button></td></tr>`).join('');
+  $('#mutes-table').innerHTML = `<thead><tr><th>ID</th><th>名字</th><th>范围</th><th>到期</th><th>操作</th></tr></thead><tbody>${rows || '<tr><td colspan="5" style="color:#8b949e">暂无禁言</td></tr>'}</tbody>`;
+}
+$('#mute-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const { j } = await api('/api/admin/mute', { method: 'POST', body: { id: Number($('#mute-id').value), scope: $('#mute-scope').value, minutes: Number($('#mute-min').value) || 0 } });
+  toast(j?.ok ? '已禁言' : ('失败：' + (j?.error || '')), j?.ok ? 'ok' : 'err');
+  loadMutes();
+});
+$('#unmute-btn').addEventListener('click', async () => {
+  const { j } = await api('/api/admin/unmute', { method: 'POST', body: { id: Number($('#mute-id').value), scope: $('#mute-scope').value } });
+  toast(j?.ok ? '已解除禁言' : '失败', j?.ok ? 'ok' : 'err'); loadMutes();
+});
+$('#ban-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!confirm('封禁该玩家？禁止登录并强制下线。')) return;
+  const { j } = await api('/api/admin/ban', { method: 'POST', body: { id: Number($('#ban-id').value), ban: true } });
+  toast(j?.ok ? `已封禁（踢下线 ${j.kicked}）` : ('失败：' + (j?.error || '')), j?.ok ? 'ok' : 'err');
+});
+$('#unban-btn').addEventListener('click', async () => {
+  const { j } = await api('/api/admin/ban', { method: 'POST', body: { id: Number($('#ban-id').value), ban: false } });
+  toast(j?.ok ? '已解封' : '失败', j?.ok ? 'ok' : 'err');
+});
+
+// ---- [report] reports tab + chat-history pull ------------------------------------------------------------------------
+async function loadReports() {
+  const { j } = await api('/api/admin/reports');
+  if (!j?.ok) return;
+  const rows = j.reports.map((r) => `<tr><td>${r.id}</td><td>${r.target} ${esc(r.targetName || '')}</td><td>${esc(r.reporterName || '')}</td><td>${esc(r.reason)}</td><td>${new Date(r.at).toLocaleString('zh-CN')}</td><td>${r.status}</td>
+    <td><div class="adm-actions"><button class="adm-btn ghost mini" data-rep="${r.id}" data-act="dismiss">忽略</button><button class="adm-btn mini" data-rep="${r.id}" data-act="mute">禁言</button><button class="adm-btn danger mini" data-rep="${r.id}" data-act="ban">封禁</button><button class="adm-btn ghost mini" data-hist="${r.target}">记录</button></div></td></tr>`).join('');
+  $('#reports-table').innerHTML = `<thead><tr><th>#</th><th>被举报</th><th>举报人</th><th>理由</th><th>时间</th><th>状态</th><th>操作</th></tr></thead><tbody>${rows || '<tr><td colspan="7" style="color:#8b949e">暂无举报</td></tr>'}</tbody>`;
+}
+$('#history-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const { j } = await api('/api/admin/chat-history?id=' + Number($('#history-id').value));
+  $('#history-out').textContent = j?.ok ? JSON.stringify(j.history, null, 1) : ('失败：' + (j?.error || ''));
+});
+
+// ---- [titles] grant tab ----------------------------------------------------------------------------------------------
+$('#grant-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const { j } = await api('/api/admin/grant-title', { method: 'POST', body: { id: Number($('#grant-id').value), world: $('#grant-world').value, profile: $('#grant-profile').value, badge: $('#grant-badge').value } });
+  toast(j?.ok ? '称号/徽章已授予' : ('失败：' + (j?.error || '')), j?.ok ? 'ok' : 'err');
+});
+
+// ---- [plugin-admin] plugins tab --------------------------------------------------------------------------------------
+async function loadPlugins() {
+  const { j } = await api('/api/admin/plugins');
+  if (!j?.ok) return;
+  const inst = (j.plugins || []).filter((p) => p.status === 'installed');
+  const removed = (j.plugins || []).filter((p) => p.status === 'removed');
+  const rows = inst.map((p) => `<tr><td>${esc(p.id)}</td><td>${esc(p.name || '')}</td><td>${esc(p.version || '')}</td><td><button class="adm-btn danger mini" data-unlist="${esc(p.id)}">下架</button></td></tr>`).join('');
+  $('#plugins-table').innerHTML = `<thead><tr><th>ID</th><th>名称</th><th>版本</th><th>操作</th></tr></thead><tbody>${rows || '<tr><td colspan="4" style="color:#8b949e">暂无插件</td></tr>'}</tbody>`;
+  const rem = removed.map((p) => `<tr><td>${esc(p.folder)}</td><td><button class="adm-btn mini" data-relist="${esc(p.folder)}">上架</button></td></tr>`).join('');
+  $('#removed-table').innerHTML = `<thead><tr><th>文件夹</th><th>操作</th></tr></thead><tbody>${rem || '<tr><td colspan="2" style="color:#8b949e">暂无下架</td></tr>'}</tbody>`;
+}
+$('#plugin-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const file = $('#plugin-file').files[0];
+  if (!file) { toast('请选择 zip', 'err'); return; }
+  const buf = await file.arrayBuffer();
+  let bin = ''; const bytes = new Uint8Array(buf);
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  const zip = btoa(bin);
+  const { j } = await api('/api/admin/plugin-upload', { method: 'POST', body: { zip } });
+  toast(j?.ok ? ('已安装：' + (j.id || '')) : ('失败：' + (j?.error || '')), j?.ok ? 'ok' : 'err');
+  loadPlugins();
+});
+
 $$('.adm-tab').forEach((t) => t.addEventListener('click', () => {
   $$('.adm-tab').forEach((x) => x.classList.toggle('is-active', x === t));
   $$('[data-panel]').forEach((p) => p.classList.toggle('is-hidden', p.dataset.panel !== t.dataset.tab));
-  ({ players: loadPlayers, rooms: loadRooms, accounts: loadAccounts, broadcast: loadBroadcast })[t.dataset.tab]?.();
+  ({ players: loadPlayers, rooms: loadRooms, accounts: loadAccounts, broadcast: loadBroadcast, settings: loadSettings, moderation: loadMutes, reports: loadReports, plugins: loadPlugins })[t.dataset.tab]?.();
 }));
 
 $('#logout').addEventListener('click', async () => {

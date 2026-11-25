@@ -55,6 +55,14 @@ export function createAuthStore({ dbPath, log }) {
   if (!acctCols.includes('discriminator')) db.exec('ALTER TABLE accounts ADD COLUMN discriminator INTEGER');
   // [admin-title] per-admin world-channel 称号 (default 管理), editable in the admin panel.
   if (!acctCols.includes('admin_title')) db.exec('ALTER TABLE accounts ADD COLUMN admin_title TEXT');
+  // [titles] per-account world-channel 称号 (grantable to ANY player) + profile 称号/徽章 (admin-granted).
+  if (!acctCols.includes('world_title')) db.exec('ALTER TABLE accounts ADD COLUMN world_title TEXT');
+  if (!acctCols.includes('profile_title')) db.exec('ALTER TABLE accounts ADD COLUMN profile_title TEXT');
+  if (!acctCols.includes('profile_badge')) db.exec('ALTER TABLE accounts ADD COLUMN profile_badge TEXT');
+  // [moderation] server config kv + mutes + reports.
+  db.exec(`CREATE TABLE IF NOT EXISTS server_config (key TEXT PRIMARY KEY, value TEXT);
+  CREATE TABLE IF NOT EXISTS mutes (account_id INTEGER NOT NULL, scope TEXT NOT NULL, until INTEGER NOT NULL DEFAULT 0, by INTEGER, at INTEGER NOT NULL, PRIMARY KEY (account_id, scope));
+  CREATE TABLE IF NOT EXISTS reports (id INTEGER PRIMARY KEY AUTOINCREMENT, target INTEGER NOT NULL, reporter INTEGER NOT NULL, reason TEXT NOT NULL, at INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'open');`);
   db.exec('UPDATE accounts SET display_name = username WHERE display_name IS NULL');
   const freeDisc = () => { const used = new Set(db.prepare('SELECT discriminator FROM accounts').all().map((r) => r.discriminator)); for (let i = 0; i < 200; i++) { const d = 1000 + Math.floor(Math.random() * 9000); if (!used.has(d)) return d; } let d = 10000; while (used.has(d)) d++; return d; };
   const putDisc = db.prepare('UPDATE accounts SET discriminator = ? WHERE id = ?');
@@ -166,6 +174,25 @@ export function createAuthStore({ dbPath, log }) {
     /** [admin-title] the admin's world-channel 称号; null/empty falls back to 管理 at render time. */
     adminTitleOf(id) { const r = db.prepare('SELECT admin_title FROM accounts WHERE id = ?').get(id); return (r && r.admin_title) || null; },
     setAdminTitle(id, title) { db.prepare('UPDATE accounts SET admin_title = ? WHERE id = ?').run(title || null, id); },
+    /** [titles] per-account world 称号 + profile 称号/徽章 (admin-grantable to any player). */
+    worldTitleOf(id) { const r = db.prepare('SELECT world_title FROM accounts WHERE id = ?').get(id); return (r && r.world_title) || null; },
+    setWorldTitle(id, t) { db.prepare('UPDATE accounts SET world_title = ? WHERE id = ?').run(t || null, id); },
+    profileTitleOf(id) { const r = db.prepare('SELECT profile_title FROM accounts WHERE id = ?').get(id); return (r && r.profile_title) || null; },
+    setProfileTitle(id, t) { db.prepare('UPDATE accounts SET profile_title = ? WHERE id = ?').run(t || null, id); },
+    profileBadgeOf(id) { const r = db.prepare('SELECT profile_badge FROM accounts WHERE id = ?').get(id); return (r && r.profile_badge) || null; },
+    setProfileBadge(id, b) { db.prepare('UPDATE accounts SET profile_badge = ? WHERE id = ?').run(b || null, id); },
+    /** [moderation] server config kv (JSON values). */
+    getConfig(key, fallback = null) { const r = db.prepare('SELECT value FROM server_config WHERE key = ?').get(key); if (!r) return fallback; try { return JSON.parse(r.value); } catch { return fallback; } },
+    setConfig(key, value) { db.prepare('INSERT INTO server_config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(key, JSON.stringify(value)); },
+    /** [mute] active mutes for an account (scope room/lobby/all; until=0 permanent). Expired rows are dropped on read. */
+    mutesOf(id, now = Date.now()) { db.prepare('DELETE FROM mutes WHERE account_id = ? AND until > 0 AND until <= ?').run(id, now); return db.prepare('SELECT scope, until, by, at FROM mutes WHERE account_id = ?').all(id); },
+    addMute(id, scope, until = 0, by = null, now = Date.now()) { db.prepare('INSERT INTO mutes(account_id,scope,until,by,at) VALUES(?,?,?,?,?) ON CONFLICT(account_id,scope) DO UPDATE SET until=excluded.until, by=excluded.by, at=excluded.at').run(id, scope, until || 0, by, now); },
+    removeMute(id, scope) { if (scope) db.prepare('DELETE FROM mutes WHERE account_id = ? AND scope = ?').run(id, scope); else db.prepare('DELETE FROM mutes WHERE account_id = ?').run(id); },
+    listMutes() { return db.prepare('SELECT account_id, scope, until, by, at FROM mutes ORDER BY at DESC').all(); },
+    /** [report] player-card reports (bad speech). */
+    addReport(target, reporter, reason, now = Date.now()) { const r = db.prepare('INSERT INTO reports(target,reporter,reason,at) VALUES(?,?,?,?)').run(target, reporter, reason, now); return Number(r.lastInsertRowid); },
+    listReports(status) { return status ? db.prepare('SELECT * FROM reports WHERE status = ? ORDER BY at DESC').all(status) : db.prepare('SELECT * FROM reports ORDER BY at DESC').all(); },
+    setReportStatus(id, status) { db.prepare('UPDATE reports SET status = ? WHERE id = ?').run(status, id); },
     setPassword(id, passHash) { q.setPass.run(passHash, id); },
     /** Remove an account and its tokens (P2 admin). */
     deleteAccount(id) { q.delAccountTokens.run(id); q.delAccount.run(id); },

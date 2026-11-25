@@ -52,7 +52,7 @@ export function createAuth({ dbPath, log, now = Date.now }) {
   const store = createAuthStore({ dbPath, log });
   const credLimiter = createLimiter({ max: 10, windowMs: 5 * 60 * 1000 });   // 10 credential tries / 5 min / ip+user
   const guestLimiter = createLimiter({ max: 30, windowMs: 5 * 60 * 1000 });  // 30 guest passes / 5 min / ip
-  const mailer = createMailer({ log });
+  const mailer = createMailer({ log, getConfig: () => store.getConfig('smtp', {}) });   // [smtp-admin]
   const codeLimiter = createLimiter({ max: 5, windowMs: 10 * 60 * 1000 });   // 5 code sends / 10 min / ip+email
   const sweepTimer = setInterval(() => { store.purgeExpired(now()); credLimiter.sweep(now()); guestLimiter.sweep(now()); codeLimiter.sweep(now()); }, 10 * 60 * 1000);
   sweepTimer.unref?.();
@@ -109,6 +109,7 @@ export function createAuth({ dbPath, log, now = Date.now }) {
      * @returns {{ok:true, token:string, account:object, mode:string}|{ok:false, error:string}}
      */
     register(username, password, { ip = '?', mode = 'token', email = '', code = '', deviceFp = '' } = {}) {
+      if ((store.getConfig('auth', {}) || {}).register === false) return { ok: false, error: 'register_closed' };   // [switches]
       username = String(username ?? '').trim();
       password = String(password ?? '');
       email = normEmail(email);
@@ -169,6 +170,7 @@ export function createAuth({ dbPath, log, now = Date.now }) {
      * @returns {{ok:true, token:string, name:string}|{ok:false, error:string}}
      */
     guest(name, { ip = '?' } = {}) {
+      if ((store.getConfig('auth', {}) || {}).guest === false) return { ok: false, error: 'guest_closed' };   // [switches]
       name = String(name ?? '').trim().slice(0, 16);
       if (!name) return { ok: false, error: 'bad_name' };
       if (!guestLimiter.take(`guest:${ip}`, now())) return { ok: false, error: 'rate_limited' };
@@ -182,6 +184,7 @@ export function createAuth({ dbPath, log, now = Date.now }) {
     convertGuest(guestToken, { username = '', password = '', email = '', code = '', deviceFp = '', mode = 'token', ip = '?' } = {}) {
       const v = this.verifyToken(String(guestToken ?? ''));
       if (!v.ok || v.kind !== 'guest') return { ok: false, error: 'need_guest' };
+      if ((store.getConfig('auth', {}) || {}).register === false) return { ok: false, error: 'register_closed' };   // [switches]
       const guestName = v.name || '游客';
       const conflict = deviceConflict(deviceFp); if (conflict) return conflict;
       let uname = String(username ?? '').trim();
